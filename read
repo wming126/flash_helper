@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [ $# != 1 ]
+then
+	echo "参数错误"
+	echo "usage: ./read filename"
+	exit 1
+fi
+
+sudo flashrom -p linux_spi:dev=/dev/spidev0.0 -r $1

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+if [ $# != 1 ]
+then
+	echo "参数错误"
+	echo "usage: ./write filename"
+	exit 0
+fi
+
+if [ ! -f $1 ]
+then
+	echo "文件不存在"
+	exit 0
+fi
+
+sudo flashrom -p linux_spi:dev=/dev/spidev0.0 -w $1 2>/tmp/flashrom_error.log
+
+if [ $? != 0 ]
+then
+	cat /tmp/flashrom_error.log
+	match=`grep "doesn't match the flash chip's size" /tmp/flashrom_error.log`
+	if [ -n "$match" ]
+	then
+		flashsize=`cat /tmp/flashrom_error.log | awk -F'(' '{printf $3}' | awk -F' ' '{printf $1}'`
+		filesize=`cat /tmp/flashrom_error.log | awk -F'(' '{printf $2}' | awk -F' ' '{printf $1}'`
+
+		if [ $filesize -ge $flashsize ]
+		then
+			echo "ERROR: 文件大于flash容量"
+			exit 1
+		fi
+
+		echo "检测到文件与flash大小不匹配，进行自动处理..."
+		dd if=/dev/zero of=/tmp/fffill.bin bs=$((flashsize-filesize)) count=1 | sed -i 's/\x00/\xff/g' /tmp/fffill.bin
+		cat $1 /tmp/fffill.bin > /tmp/temp.bin
+		temp=`printf "%08x" $filesize`
+		echo "00000000:$temp flashzone" > /tmp/flashrom.layout
+		echo "处理完成，开始烧录"
+		sudo flashrom -p linux_spi:dev=/dev/spidev0.0 -l /tmp/flashrom.layout -i flashzone -w /tmp/temp.bin
+		rm -rf /tmp/*.bin /tmp/flashrom*
+	fi
+fi
