@@ -39,16 +39,6 @@ fi
 flash=`grep "flash chip" /tmp/flashrom.log | awk -F' ' '{print $5,$6,$7,$8}'`
 echo -e "\033[32m型号: $flash\033[32m"
 
-echo -e "\033[33m擦除flash...\033[0m"
-sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -E
-
-if [ $? != 0 ]
-then
-	echo -e "\033[31m错误: 擦除失败，需要手动处理\033[0m"
-	exit 3
-fi
-echo -e "\033[32m擦除完成\033[0m"
-
 echo -e "\033[33m烧录flash...\033[0m"
 sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -w $1 2>/tmp/flashrom_error.log
 
@@ -67,10 +57,14 @@ then
 			exit 1
 		fi
 
-		echo -e "\033[33m检测到文件与flash大小不匹配，进行自动处理...\033[0m"
-		dd if=/dev/zero of=/tmp/fffill.bin bs=$((flashsize-filesize)) count=1 | sed -i 's/\x00/\xff/g' /tmp/fffill.bin
-		cat $1 /tmp/fffill.bin > /tmp/tempx.bin
+		echo -e "\033[33m文件大小与flash容量不匹配，进行自动处理...\033[0m"
+		echo -e "\033[33m  读取flash...\033[0m"
+		sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -r /tmp/readx.bin
+		echo -e "\033[33m  读取完成，进行文件合并...\033[0m"
+		dd if=/tmp/readx.bin of=/tmp/remfill.bin ibs=$filesize skip=1
+		cat $1 /tmp/remfill.bin > /tmp/tempx.bin
 		temp=`printf "%08x" $((filesize-1))`
+		echo -e "\033[33m  生成flash layout...\033[0m"
 		echo "00000000:$temp flashzone" > /tmp/flashrom.layout
 		echo -e "\033[33m处理完成，开始烧录...\033[0m"
 		sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -l /tmp/flashrom.layout -i flashzone -w /tmp/tempx.bin
