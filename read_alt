@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ $# != 1 ]
+then
+	echo "参数错误"
+	echo "usage: ./read filename"
+	exit 1
+fi
+
+if [ ! -e /dev/ttyACM0 ]
+then
+	echo "错误: 未检测到编程器/dev/ttyACM0"
+	exit 0
+fi
+
+sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -r $1

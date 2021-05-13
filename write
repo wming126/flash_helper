@@ -33,7 +33,7 @@ then
 		echo "检测到文件与flash大小不匹配，进行自动处理..."
 		dd if=/dev/zero of=/tmp/fffill.bin bs=$((flashsize-filesize)) count=1 | sed -i 's/\x00/\xff/g' /tmp/fffill.bin
 		cat $1 /tmp/fffill.bin > /tmp/temp.bin
-		temp=`printf "%08x" $filesize`
+		temp=`printf "%08x" $((filesize-1))`
 		echo "00000000:$temp flashzone" > /tmp/flashrom.layout
 		echo "处理完成，开始烧录"
 		sudo flashrom -p linux_spi:dev=/dev/spidev1.0 -l /tmp/flashrom.layout -i flashzone -w /tmp/temp.bin
