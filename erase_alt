@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -E
