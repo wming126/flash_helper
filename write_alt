@@ -45,7 +45,7 @@ sudo flashrom -p serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000 -w $1 2>/tmp
 if [ $? != 0 ]
 then
 	cat /tmp/flashrom_error.log
-	match=`grep "doesn't match the flash chip's size" /tmp/flashrom_error.log`
+	match=`grep "doesn't match the .* size" /tmp/flashrom_error.log`
 	if [ -n "$match" ]
 	then
 		flashsize=`cat /tmp/flashrom_error.log | awk -F'(' '{printf $3}' | awk -F' ' '{printf $1}'`
