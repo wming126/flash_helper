@@ -13,7 +13,7 @@ then
 	exit 0
 fi
 
-sudo flashrom -p linux_spi:dev=/dev/spidev1.0 -w $1 2>/tmp/flashrom_error.log
+sudo flashrom -p linux_spi:dev=/dev/spidev1.0,spispeed=20000 -w $1 2>/tmp/flashrom_error.log
 
 if [ $? != 0 ]
 then
@@ -36,7 +36,7 @@ then
 		temp=`printf "%08x" $((filesize-1))`
 		echo "00000000:$temp flashzone" > /tmp/flashrom.layout
 		echo "处理完成，开始烧录"
-		sudo flashrom -p linux_spi:dev=/dev/spidev1.0 -l /tmp/flashrom.layout -i flashzone -w /tmp/temp.bin
+		sudo flashrom -p linux_spi:dev=/dev/spidev1.0,spispeed=20000 -l /tmp/flashrom.layout -i flashzone -w /tmp/temp.bin
 		rm -rf /tmp/*.bin /tmp/flashrom*
 	fi
 fi
