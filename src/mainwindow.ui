@@ -6,184 +6,383 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>650</width>
-    <height>550</height>
+    <width>850</width>
+    <height>800</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>FlashHelper - BIOS Flash Tool</string>
+   <string>FlashHelper - BIOS &amp; EEPROM Tool</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="currentIndex">
-       <number>0</number>
+     <widget class="QSplitter" name="splitterMain">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QWidget" name="tabFlash">
-       <attribute name="title">
-        <string>Flashing</string>
-       </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout">
-          <item>
-           <widget class="QLabel" name="label">
-            <property name="text">
-             <string>Programmer:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboProgrammer"/>
-          </item>
-          <item>
-           <widget class="QLabel" name="label_3">
-            <property name="text">
-             <string>Speed:</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboSpeed"/>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_2">
-          <item>
-           <widget class="QLineEdit" name="lineFile">
-            <property name="placeholderText">
-             <string>Select BIOS file...</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnBrowse">
-            <property name="text">
-             <string>Browse</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
-          <item>
-           <widget class="QPushButton" name="btnDetect">
-            <property name="text">
-             <string>Detect Chip</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnRead">
-            <property name="text">
-             <string>Read Flash</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnWrite">
-            <property name="text">
-             <string>Write Flash</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnErase">
-            <property name="text">
-             <string>Erase Flash</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <widget class="QTextEdit" name="textLog">
-          <property name="readOnly">
-           <bool>true</bool>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: #1e1e1e; color: #ffffff; font-family: 'Monospace';</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tabSetup">
-       <attribute name="title">
-        <string>System Setup</string>
-       </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
-        <item>
-         <widget class="QGroupBox" name="groupBox">
-          <property name="title">
-           <string>Permission &amp; Hardware Access</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_4">
+      <widget class="QTabWidget" name="tabWidget">
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="tabSPI">
+        <attribute name="title">
+         <string>SPI Flash</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout">
            <item>
-            <widget class="QLabel" name="lblUdevStatus">
+            <widget class="QLabel" name="label">
              <property name="text">
-              <string>Udev Rules: Unknown</string>
+              <string>Programmer:</string>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="QLabel" name="lblPolkitStatus">
+            <widget class="QComboBox" name="comboProgrammer"/>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_3">
              <property name="text">
-              <string>Polkit Policy: Unknown</string>
+              <string>Speed:</string>
              </property>
             </widget>
            </item>
            <item>
-            <spacer name="verticalSpacer">
-             <property name="orientation">
-              <enum>Qt::Vertical</enum>
+            <widget class="QComboBox" name="comboSpeed"/>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_chip">
+           <item>
+            <widget class="QLabel" name="label_chip">
+             <property name="text">
+              <string>Chip Model (Optional):</string>
              </property>
-             <property name="sizeHint" stdset="0">
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboChip">
+             <property name="editable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <widget class="QLineEdit" name="lineFile">
+             <property name="placeholderText">
+              <string>Select BIOS file...</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnBrowse">
+             <property name="text">
+              <string>Browse</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <item>
+            <widget class="QPushButton" name="btnDetect">
+             <property name="text">
+              <string>Detect Chip</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnRead">
+             <property name="text">
+              <string>Read Flash</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnWrite">
+             <property name="text">
+              <string>Write Flash</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnErase">
+             <property name="text">
+              <string>Erase Flash</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="tabEEPROM">
+        <attribute name="title">
+         <string>EEPROM</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout_eeprom">
+         <property name="spacing">
+          <number>12</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_eep">
+           <item>
+            <widget class="QLabel" name="label_eep_prog">
+             <property name="text">
+              <string>Programmer:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboEepromProg"/>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_eep_chip">
+             <property name="text">
+              <string>Chip Model:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboEepromChip">
+             <property name="editable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="groupBox_eep_file">
+           <property name="title">
+            <string>Firmware File</string>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_eep_file">
+            <item>
+             <widget class="QLineEdit" name="lineEepromFile">
+              <property name="placeholderText">
+               <string>Select EEPROM file...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnEepromBrowse">
+              <property name="text">
+               <string>Browse</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_eep_btns">
+           <item>
+            <widget class="QPushButton" name="btnEepromRead">
+             <property name="text">
+              <string>Read EEPROM</string>
+             </property>
+             <property name="minimumSize">
               <size>
-               <width>20</width>
+               <width>0</width>
                <height>40</height>
               </size>
              </property>
-            </spacer>
+            </widget>
            </item>
            <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <item>
-              <widget class="QPushButton" name="btnInstallRules">
-               <property name="text">
-                <string>Install Permission Rules (Fix No-Password)</string>
-               </property>
-               <property name="styleSheet">
-                <string notr="true">background-color: #27ae60; color: white; font-weight: bold;</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="btnRemoveRules">
-               <property name="text">
-                <string>Remove Rules (Cleanup)</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
+            <widget class="QPushButton" name="btnEepromWrite">
+             <property name="text">
+              <string>Write EEPROM</string>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>40</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnEepromErase">
+             <property name="text">
+              <string>Erase EEPROM</string>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>40</height>
+              </size>
+             </property>
+            </widget>
            </item>
           </layout>
-         </widget>
+         </item>
+         <item>
+          <spacer name="verticalSpacer_eep">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>10</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>       <widget class="QWidget" name="tabSetup">
+        <attribute name="title">
+         <string>System Setup</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout_3">
+         <item>
+          <widget class="QGroupBox" name="groupBox">
+           <property name="title">
+            <string>Permission &amp; Hardware Access</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_4">
+            <item>
+             <widget class="QLabel" name="lblUdevStatus">
+              <property name="text">
+               <string>Udev Rules: Unknown</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="lblPolkitStatus">
+              <property name="text">
+               <string>Polkit Policy: Unknown</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_4">
+              <item>
+               <widget class="QPushButton" name="btnInstallRules">
+                <property name="text">
+                 <string>Install Permission Rules (Fix No-Password)</string>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">background-color: #27ae60; color: white; font-weight: bold;</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnRemoveRules">
+                <property name="text">
+                 <string>Remove Rules (Cleanup)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Note: Installing rules requires root password ONCE. After that, you can flash BIOS without being asked for a password.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="editorContainer" native="true">
+       <layout class="QVBoxLayout" name="verticalLayout_ed">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_editor_title">
+          <item>
+           <widget class="QLabel" name="label_editor">
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Hex Editor (Real-time Preview &amp; Edit):</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_ed">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnSaveFile">
+            <property name="text">
+             <string>Save Changes to File</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
         <item>
-         <widget class="QLabel" name="label_2">
-          <property name="text">
-           <string>Note: Installing rules requires root password ONCE. After that, you can flash BIOS without being asked for a password.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
+         <widget class="HexEditor" name="hexEditor" native="true"/>
         </item>
        </layout>
+      </widget>
+      <widget class="QTextEdit" name="textLog">
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background-color: #1e1e1e; color: #ffffff; font-family: 'Monospace';</string>
+       </property>
       </widget>
      </widget>
     </item>
@@ -191,6 +390,14 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>HexEditor</class>
+   <extends>QWidget</extends>
+   <header>src/hexeditor.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

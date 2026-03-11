@@ -180,6 +180,110 @@
         <translation>智能合并失败</translation>
     </message>
     <message>
+        <source>Auto Detect</source>
+        <translation>自动探测</translation>
+    </message>
+    <message>
+        <source>SPI Flash</source>
+        <translation>SPI Flash 烧录</translation>
+    </message>
+    <message>
+        <source>EEPROM</source>
+        <translation>EEPROM 烧录</translation>
+    </message>
+    <message>
+        <source>Chip Model (Optional):</source>
+        <translation>芯片型号 (可选):</translation>
+    </message>
+    <message>
+        <source>Chip Model:</source>
+        <translation>芯片型号:</translation>
+    </message>
+    <message>
+        <source>Read EEPROM</source>
+        <translation>读取 EEPROM</translation>
+    </message>
+    <message>
+        <source>Write EEPROM</source>
+        <translation>写入 EEPROM</translation>
+    </message>
+    <message>
+        <source>Erase EEPROM</source>
+        <translation>擦除 EEPROM</translation>
+    </message>
+    <message>
+        <source>Hex Editor (Real-time Preview &amp; Edit):</source>
+        <translation>十六进制编辑器 (实时预览与编辑):</translation>
+    </message>
+    <message>
+        <source>Save Changes to File</source>
+        <translation>保存修改到文件</translation>
+    </message>
+    <message>
+        <source>Using modified data from Hex Editor.</source>
+        <translation>使用来自 Hex 编辑器的修改数据。</translation>
+    </message>
+    <message>
+        <source>File saved successfully: %1</source>
+        <translation>文件保存成功: %1</translation>
+    </message>
+    <message>
+        <source>Failed to save file!</source>
+        <translation>文件保存失败！</translation>
+    </message>
+    <message>
+        <source>Input Required</source>
+        <translation>需要输入</translation>
+    </message>
+    <message>
+        <source>Please enter chip model (e.g. AT24C256)</source>
+        <translation>请输入芯片型号 (如 AT24C256)</translation>
+    </message>
+    <message>
+        <source>ERASE EEPROM?</source>
+        <translation>确定擦除 EEPROM？</translation>
+    </message>
+    <message>
+        <source>Firmware File</source>
+        <translation>固件文件</translation>
+    </message>
+    <message>
+        <source>Select EEPROM file...</source>
+        <translation>选择 EEPROM 文件...</translation>
+    </message>
+    <message>
+        <source>Open EEPROM File</source>
+        <translation>打开 EEPROM 文件</translation>
+    </message>
+    <message>
+        <source>Save EEPROM File</source>
+        <translation>保存 EEPROM 文件</translation>
+    </message>
+    <message>
+        <source>Reading EEPROM...</source>
+        <translation>正在读取 EEPROM...</translation>
+    </message>
+    <message>
+        <source>Writing EEPROM...</source>
+        <translation>正在写入 EEPROM...</translation>
+    </message>
+    <message>
+        <source>Erasing EEPROM...</source>
+        <translation>正在擦除 EEPROM...</translation>
+    </message>
+    <message>
+        <source>CH341A SPI (I2C Patched)</source>
+        <translation>CH341A SPI (支持 I2C)</translation>
+    </message>
+    <message>
+        <source>Bus Pirate</source>
+        <translation>Bus Pirate</translation>
+    </message>
+    <message>
+        <source>Serprog</source>
+        <translation>Serprog</translation>
+    </message>
+    <message>
         <source>Serprog (STM32)</source>
         <translation>Serprog (STM32)</translation>
     </message>

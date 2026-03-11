@@ -49,10 +49,13 @@ set(PROJECT_SOURCES
     src/mainwindow.cpp
     src/mainwindow.h
     src/mainwindow.ui
+    src/hexeditor.cpp
+    src/hexeditor.h
     res/resources.qrc
 )
 
 add_executable(FlashHelper ${PROJECT_SOURCES})
+target_include_directories(FlashHelper PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(FlashHelper PRIVATE Qt6::Widgets Qt6::Core Qt6::Gui Qt6::DBus)
 
 # 1. Install Binary

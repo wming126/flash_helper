@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QTimer>
+#include <QCompleter>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -25,19 +26,28 @@ MainWindow::MainWindow(QWidget *parent)
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
             this, &MainWindow::processFinished);
-ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
-ui->comboProgrammer->addItem(tr("CH341A SPI"), "ch341a_spi");
-ui->comboProgrammer->addItem(tr("FT2232 SPI"), "ft2232_spi");
-ui->comboProgrammer->addItem(tr("Bus Pirate SPI"), "buspirate_spi:dev=/dev/ttyUSB0");
-ui->comboProgrammer->addItem(tr("Dediprog"), "dediprog");
-ui->comboProgrammer->addItem(tr("STLINK-V3 SPI"), "stlinkv3_spi");
-ui->comboProgrammer->addItem(tr("PICkit 2 SPI"), "pickit2_spi");
-ui->comboProgrammer->addItem(tr("DirtyJTAG SPI"), "dirtyjtag_spi");
-ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
-ui->comboProgrammer->addItem(tr("Linux MTD"), "linux_mtd");
-ui->comboProgrammer->addItem(tr("Dummy (Test only)"), "dummy");
 
-// LoongArch Specific
+    // SPI Programmers
+    ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
+    ui->comboProgrammer->addItem(tr("CH341A SPI"), "ch341a_spi");
+    ui->comboProgrammer->addItem(tr("FT2232 SPI"), "ft2232_spi");
+    ui->comboProgrammer->addItem(tr("Bus Pirate SPI"), "buspirate_spi:dev=/dev/ttyUSB0");
+    ui->comboProgrammer->addItem(tr("Dediprog"), "dediprog");
+    ui->comboProgrammer->addItem(tr("STLINK-V3 SPI"), "stlinkv3_spi");
+    ui->comboProgrammer->addItem(tr("PICkit 2 SPI"), "pickit2_spi");
+    ui->comboProgrammer->addItem(tr("DirtyJTAG SPI"), "dirtyjtag_spi");
+    ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
+    ui->comboProgrammer->addItem(tr("Linux MTD"), "linux_mtd");
+    ui->comboProgrammer->addItem(tr("Dummy (Test only)"), "dummy");
+
+    // LoongArch Specific
+    QString arch = QSysInfo::currentCpuArchitecture();
+    if (arch.contains("loongarch") || arch.contains("la64")) {
+        ui->comboProgrammer->addItem(tr("Internal (Loongson SPI)"), "internal");
+        ui->comboProgrammer->setCurrentIndex(ui->comboProgrammer->count() - 1);
+    }
+
+    ui->comboSpeed->addItem(tr("Default"), "");
     ui->comboSpeed->addItem("36 MHz", "36000000");
     ui->comboSpeed->addItem("20 MHz", "20000000");
     ui->comboSpeed->addItem("16 MHz", "16000000");
@@ -49,27 +59,101 @@ ui->comboProgrammer->addItem(tr("Dummy (Test only)"), "dummy");
     ui->comboSpeed->addItem("256 kHz", "256000");
     ui->comboSpeed->addItem("128 kHz", "128000");
 
+    // EEPROM Programmers
+    ui->comboEepromProg->addItem(tr("CH341A SPI (I2C Patched)"), "ch341a_spi");
+    ui->comboEepromProg->addItem(tr("Bus Pirate"), "buspirate_spi");
+    ui->comboEepromProg->addItem(tr("Serprog"), "serprog");
+    ui->comboEepromProg->addItem(tr("Linux SPI"), "linux_spi");
+
     ui->textLog->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->textLog, &QWidget::customContextMenuRequested, this, &MainWindow::showLogContextMenu);
+
+    // QSplitter 初始比例 (让控制区更紧凑)
+    ui->splitterMain->setSizes({150, 450, 150});
 
     // 预创建数据目录
     QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
 
     updateSystemStatus();
+    fetchSupportedChips();
+    
     ui->statusbar->showMessage(tr("Idle"));
     on_comboProgrammer_currentIndexChanged(ui->comboProgrammer->currentIndex());
+
+    // Tab 切换联动编辑器
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+        QString fileToLoad = (index == 1) ? eepromFile : currentFile;
+        if (!fileToLoad.isEmpty() && QFile::exists(fileToLoad)) {
+            QFile f(fileToLoad);
+            if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
+        } else {
+            loadDataToEditor(QByteArray());
+        }
+    });
 }
 
 MainWindow::~MainWindow() { delete ui; }
 
+void MainWindow::fetchSupportedChips() {
+    QString flashromPath = "/usr/sbin/flashrom";
+    if (!QFile::exists(flashromPath)) flashromPath = "/usr/bin/flashrom";
+    
+    QProcess *listProc = new QProcess(this);
+    connect(listProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), [this, listProc]() {
+        QString output = listProc->readAllStandardOutput();
+        QStringList lines = output.split('\n');
+        supportedChips.clear();
+        supportedChips << tr("Auto Detect"); // 添加自动探测选项
+        
+        bool start = false;
+        for (const QString &line : lines) {
+            QString trimmed = line.trimmed();
+            if (trimmed.contains("Vendor") && trimmed.contains("Device")) { start = true; continue; }
+            if (trimmed.startsWith("==") || trimmed.startsWith("--")) continue;
+            
+            if (start && !trimmed.isEmpty()) {
+                QStringList parts = trimmed.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+                if (parts.size() >= 2) {
+                    // 排除表头和杂质
+                    if (parts[0] == "Vendor" || parts[0] == "Known" || parts[0].contains("---")) continue;
+                    
+                    QString chipModel = parts[1];
+                    QString fullName = QString("%1 %2").arg(parts[0], parts[1]);
+                    supportedChips << chipModel;
+                    supportedChips << fullName;
+                }
+            }
+        }
+        supportedChips.removeDuplicates();
+        // 排序逻辑：Auto Detect 始终在最前面，其余按字母排序
+        QString autoStr = supportedChips.takeFirst();
+        supportedChips.sort();
+        supportedChips.prepend(autoStr);
+        
+        QCompleter *completer = new QCompleter(supportedChips, this);
+        completer->setCaseSensitivity(Qt::CaseInsensitive);
+        completer->setFilterMode(Qt::MatchContains);
+        
+        ui->comboChip->clear();
+        ui->comboChip->addItems(supportedChips);
+        ui->comboChip->setCompleter(completer);
+        ui->comboChip->setCurrentIndex(0);
+
+        ui->comboEepromChip->clear();
+        ui->comboEepromChip->addItems(supportedChips);
+        ui->comboEepromChip->setCompleter(completer);
+        ui->comboEepromChip->setCurrentIndex(0);
+        
+        listProc->deleteLater();
+    });
+    listProc->start(flashromPath, {"-L"});
+}
+
 void MainWindow::on_comboProgrammer_currentIndexChanged(int index) {
     QString data = ui->comboProgrammer->itemData(index).toString();
-    // 只有明确支持速率设置的驱动才启用下拉框
     bool supportsSpeed = data.contains("serprog") || data.contains("linux_spi");
     ui->comboSpeed->setEnabled(supportsSpeed);
-    if (!supportsSpeed) {
-        ui->comboSpeed->setCurrentIndex(0); // 设为“默认”
-    }
+    if (!supportsSpeed) ui->comboSpeed->setCurrentIndex(0);
 }
 
 void MainWindow::showLogContextMenu(const QPoint &pos) {
@@ -79,7 +163,6 @@ void MainWindow::showLogContextMenu(const QPoint &pos) {
     menu.exec(ui->textLog->mapToGlobal(pos));
 }
 
-// 安全的工作路径（位于用户家目录，避免权限冲突）
 QString getWorkPath(const QString &name) {
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/" + name;
 }
@@ -114,10 +197,11 @@ void MainWindow::on_btnInstallRules_clicked() {
                           "KERNEL==\"ttyACM*\", TAG+=\"uaccess\"\n"
                           "KERNEL==\"ttyUSB*\", TAG+=\"uaccess\"\n"
                           "KERNEL==\"spidev*\", TAG+=\"uaccess\"\n";
-    QString polkitRule = "polkit.addRule(function(action, subject) { "
-                         "if (action.id == \"org.freedesktop.policykit.exec\" && "
-                         "(action.lookup(\"program\") == \"/usr/sbin/flashrom\" || action.lookup(\"program\") == \"/usr/bin/flashrom\") && "
-                         "subject.isInGroup(\"sudo\")) { return polkit.Result.YES; } });";
+
+    QString polkitRule = "polkit.addRule(function(action, subject) {\n"
+                         "    if (action.id == \"org.freedesktop.policykit.exec\" &&\n"
+                         "        (action.lookup(\"program\") == \"/usr/sbin/flashrom\" || action.lookup(\"program\") == \"/usr/bin/flashrom\") && \n"
+                         "        subject.isInGroup(\"sudo\")) { return polkit.Result.YES; } });";
 
     QString script = QString("echo '%1' | base64 -d > /etc/udev/rules.d/z60_flashrom.rules && "
                              "echo '%2' | base64 -d > /etc/polkit-1/rules.d/10-flashrom.rules && "
@@ -160,28 +244,89 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
 void MainWindow::on_btnDetect_clicked() { 
     currentState = State::Detecting; 
     ui->statusbar->showMessage(tr("Detecting chip..."));
-    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); 
+    QStringList args = {"flashrom", "-p", getProgrammerArgs()};
+    QString chip = ui->comboChip->currentText();
+    if (!chip.isEmpty() && chip != tr("Auto Detect")) { args << "-c" << chip; }
+    runCommand("pkexec", args); 
 }
 void MainWindow::on_btnRead_clicked() {
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save BIOS File"), "backup.bin", tr("BIOS files (*.bin *.fd);;All files (*.*)"));
     if (savePath.isEmpty()) return;
+    currentFile = savePath;
     currentState = State::Reading;
     ui->statusbar->showMessage(tr("Reading flash..."));
-    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", savePath});
+    QStringList args = {"flashrom", "-p", getProgrammerArgs(), "-r", savePath};
+    QString chip = ui->comboChip->currentText();
+    if (!chip.isEmpty() && chip != tr("Auto Detect")) { args << "-c" << chip; }
+    runCommand("pkexec", args);
 }
 void MainWindow::on_btnErase_clicked() { 
     if (QMessageBox::question(this, tr("Confirm"), tr("ERASE flash?")) == QMessageBox::Yes) { 
         currentState = State::Erasing; 
         ui->statusbar->showMessage(tr("Erasing flash..."));
-        runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-E"}); 
+        QStringList args = {"flashrom", "-p", getProgrammerArgs(), "-E"};
+        QString chip = ui->comboChip->currentText();
+        if (!chip.isEmpty() && chip != tr("Auto Detect")) { args << "-c" << chip; }
+        runCommand("pkexec", args); 
     } 
 }
 void MainWindow::on_btnWrite_clicked() {
-    currentFile = ui->lineFile->text();
-    if (!QFile::exists(currentFile)) return;
+    QString targetFile = prepareWriteFile();
+    if (targetFile.isEmpty() || !QFile::exists(targetFile)) return;
     currentState = State::Writing;
     ui->statusbar->showMessage(tr("Writing flash..."));
-    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-w", currentFile});
+    QStringList args = {"flashrom", "-p", getProgrammerArgs(), "-w", targetFile};
+    QString chip = ui->comboChip->currentText();
+    if (!chip.isEmpty() && chip != tr("Auto Detect")) { args << "-c" << chip; }
+    runCommand("pkexec", args);
+}
+
+void MainWindow::on_btnEepromBrowse_clicked() {
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open EEPROM File"), "", tr("Binary files (*.bin *.rom *.eep *.dat);;All files (*.*)"));
+    if (!fileName.isEmpty()) {
+        ui->lineEepromFile->setText(fileName);
+        eepromFile = fileName;
+        QFile f(fileName);
+        if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
+    }
+}
+
+void MainWindow::on_btnEepromRead_clicked() {
+    QString chip = ui->comboEepromChip->currentText();
+    if (chip.isEmpty()) { QMessageBox::warning(this, tr("Input Required"), tr("Please select or enter chip model")); return; }
+    QString savePath = QFileDialog::getSaveFileName(this, tr("Save EEPROM File"), "eeprom.bin", tr("Binary files (*.bin *.eep);;All files (*.*)"));
+    if (savePath.isEmpty()) return;
+    eepromFile = savePath;
+    currentFile = savePath;
+    currentState = State::EepromRead;
+    ui->statusbar->showMessage(tr("Reading EEPROM..."));
+    QStringList args = {"flashrom", "-p", getProgrammerArgs(true), "-r", savePath};
+    if (chip != tr("Auto Detect")) { args << "-c" << chip; }
+    runCommand("pkexec", args);
+}
+
+void MainWindow::on_btnEepromWrite_clicked() {
+    QString chip = ui->comboEepromChip->currentText();
+    if (chip.isEmpty()) { QMessageBox::warning(this, tr("Input Required"), tr("Please select or enter chip model")); return; }
+    QString targetFile = prepareWriteFile();
+    if (targetFile.isEmpty()) return;
+    currentState = State::EepromWrite;
+    ui->statusbar->showMessage(tr("Writing EEPROM..."));
+    QStringList args = {"flashrom", "-p", getProgrammerArgs(true), "-w", targetFile};
+    if (chip != tr("Auto Detect")) { args << "-c" << chip; }
+    runCommand("pkexec", args);
+}
+
+void MainWindow::on_btnEepromErase_clicked() {
+    QString chip = ui->comboEepromChip->currentText();
+    if (chip.isEmpty()) { QMessageBox::warning(this, tr("Input Required"), tr("Please select or enter chip model")); return; }
+    if (QMessageBox::question(this, tr("Confirm"), tr("ERASE EEPROM?")) == QMessageBox::Yes) {
+        currentState = State::EepromErase;
+        ui->statusbar->showMessage(tr("Erasing EEPROM..."));
+        QStringList args = {"flashrom", "-p", getProgrammerArgs(true), "-E"};
+        if (chip != tr("Auto Detect")) { args << "-c" << chip; }
+        runCommand("pkexec", args);
+    }
 }
 
 void MainWindow::readProcessOutput() {
@@ -209,25 +354,20 @@ void MainWindow::handleSmartWrite(const QString &error) {
 void MainWindow::processFinished(int exitCode) {
     auto restoreIdle = [this]() {
         QTimer::singleShot(5000, this, [this]() {
-            if (currentState == State::Idle) {
-                ui->statusbar->showMessage(tr("Idle"));
-            }
+            if (currentState == State::Idle) { ui->statusbar->showMessage(tr("Idle")); }
         });
     };
 
     if (exitCode != 0) {
-        // 如果是在 Writing 失败后进入的 SmartRead 阶段，触发读取
         if (currentState == State::SmartRead) {
             log(tr("Smart Merge Flow: Step 1/3 - Reading current flash content..."), "cyan");
             ui->statusbar->showMessage(tr("Smart Merge: Step 1/3 - Reading..."));
-            // 修正路径：使用安全的 getWorkPath
             QString targetPath = getWorkPath("readx.bin");
-            QFile::remove(targetPath); // 确保没有残留
+            QFile::remove(targetPath);
             runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", targetPath});
-            currentState = State::Reading; // 暂时设为 Reading 以等待读取完成
+            currentState = State::Reading;
             return;
         }
-        
         log(tr("Operation Failed"), "red");
         ui->statusbar->showMessage(tr("Operation Failed"), 5000);
         currentState = State::Idle;
@@ -235,9 +375,7 @@ void MainWindow::processFinished(int exitCode) {
         return;
     }
 
-    // exitCode == 0 的逻辑
     if (currentState == State::Reading && QFile::exists(getWorkPath("readx.bin"))) {
-        // 如果当前是 Reading 状态，且我们预期的备份文件存在，说明 Step 1 结束了
         log(tr("Step 2/3: Merging files..."), "cyan");
         ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 - Merging..."));
         QFile flashFile(getWorkPath("readx.bin"));
@@ -266,12 +404,46 @@ void MainWindow::processFinished(int exitCode) {
         log(tr("Smart Write Successful!"), "green");
         ui->statusbar->showMessage(tr("Smart Write Successful!"), 5000);
         QFile::remove(getWorkPath("readx.bin")); QFile::remove(getWorkPath("tempx.bin")); QFile::remove(getWorkPath("flashrom.layout"));
+        ui->hexEditor->clearModified();
     } else {
         log(tr("Operation Successful"), "green");
         ui->statusbar->showMessage(tr("Operation Successful"), 5000);
+        if (currentState == State::Reading || currentState == State::EepromRead) {
+            QFile f((currentState == State::EepromRead) ? eepromFile : currentFile);
+            if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
+        }
+        if (currentState == State::Writing || currentState == State::EepromWrite) ui->hexEditor->clearModified();
     }
     currentState = State::Idle;
     restoreIdle();
+}
+
+void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
+
+QString MainWindow::prepareWriteFile() {
+    if (ui->hexEditor->isModified()) {
+        QString tempPath = getWorkPath("flash_edited.bin");
+        QFile f(tempPath);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write(ui->hexEditor->data());
+            f.close();
+            log(tr("Using modified data from Hex Editor."), "cyan");
+            return tempPath;
+        }
+    }
+    return (ui->tabWidget->currentIndex() == 1) ? eepromFile : currentFile;
+}
+
+void MainWindow::on_btnSaveFile_clicked() {
+    QString savePath = QFileDialog::getSaveFileName(this, tr("Save Firmware"), "modified.bin", tr("BIOS files (*.bin *.fd);;All files (*.*)"));
+    if (savePath.isEmpty()) return;
+    QFile f(savePath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(ui->hexEditor->data());
+        f.close();
+        log(tr("File saved successfully: %1").arg(savePath), "green");
+        ui->hexEditor->clearModified();
+    } else log(tr("Failed to save file!"), "red");
 }
 
 void MainWindow::on_btnBrowse_clicked() {
@@ -279,16 +451,16 @@ void MainWindow::on_btnBrowse_clicked() {
     if (!fileName.isEmpty()) {
         ui->lineFile->setText(fileName);
         currentFile = fileName;
+        QFile f(fileName);
+        if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
     }
 }
 
 void MainWindow::log(const QString &msg, const QString &color) { ui->textLog->append(QString("<font color=\"%1\">%2</font>").arg(color, msg.toHtmlEscaped())); }
-QString MainWindow::getProgrammerArgs() {
+QString MainWindow::getProgrammerArgs(bool isEeprom) {
+    if (isEeprom) return ui->comboEepromProg->currentData().toString();
     QString base = ui->comboProgrammer->currentData().toString();
     QString speed = ui->comboSpeed->currentData().toString();
-    // 仅针对 serprog 和 linux_spi 追加速率参数
-    if (!speed.isEmpty() && (base.contains("serprog") || base.contains("linux_spi"))) {
-        base += ",spispeed=" + speed;
-    }
+    if (!speed.isEmpty() && (base.contains("serprog") || base.contains("linux_spi"))) base += ",spispeed=" + speed;
     return base;
 }

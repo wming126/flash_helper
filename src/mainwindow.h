@@ -30,19 +30,29 @@ private slots:
     void processFinished(int exitCode);
     void showLogContextMenu(const QPoint &pos);
     void on_comboProgrammer_currentIndexChanged(int index);
+    void on_btnEepromRead_clicked();
+    void on_btnEepromWrite_clicked();
+    void on_btnEepromErase_clicked();
+    void on_btnSaveFile_clicked();
+    void on_btnEepromBrowse_clicked();
 
 private:
     Ui::MainWindow *ui;
     QProcess *process;
     QString currentFile;
+    QString eepromFile;
+    QStringList supportedChips;
 
     void updateSystemStatus();
-    QString getProgrammerArgs();
+    void fetchSupportedChips();
+    QString getProgrammerArgs(bool isEeprom = false);
     void log(const QString &msg, const QString &color = "white");
     void runCommand(const QString &cmd, const QStringList &args);
+    void loadDataToEditor(const QByteArray &data);
+    QString prepareWriteFile();
     
-    // Internal state for smart write
-    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite };
+    // Internal state management
+    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase };
     State currentState = State::Idle;
     
     struct FlashInfo {
