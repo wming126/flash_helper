@@ -58,18 +58,21 @@ void MainWindow::updateSystemStatus() {
 }
 
 void MainWindow::on_btnInstallRules_clicked() {
-    QString udevContent = "# STM32 VSerprog\\nSUBSYSTEMS==\\\"usb\\\", ATTRS{idVendor}==\\\"0483\\\", ATTRS{idProduct}==\\\"5740\\\", TAG+=\\\"uaccess\\\"\\nKERNEL==\\\"ttyACM*\\\", TAG+=\\\"uaccess\\\"\\nKERNEL==\\\"spidev*\\\", TAG+=\\\"uaccess\\\"\\n";
+    QString udevContent = "# STM32 VSerprog\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"5740\", TAG+=\"uaccess\"\n"
+                          "KERNEL==\"ttyACM*\", TAG+=\"uaccess\"\n"
+                          "KERNEL==\"spidev*\", TAG+=\"uaccess\"\n";
     QString polkitRule = "polkit.addRule(function(action, subject) { "
-                         "if (action.id == \\\"org.freedesktop.policykit.exec\\\" && "
-                         "(action.lookup(\\\"program\\\") == \\\"/usr/sbin/flashrom\\\" || action.lookup(\\\"program\\\") == \\\"/usr/bin/flashrom\\\") && "
-                         "subject.isInGroup(\\\"sudo\\\")) { return polkit.Result.YES; } });";
+                         "if (action.id == \"org.freedesktop.policykit.exec\" && "
+                         "(action.lookup(\"program\") == \"/usr/sbin/flashrom\" || action.lookup(\"program\") == \"/usr/bin/flashrom\") && "
+                         "subject.isInGroup(\"sudo\")) { return polkit.Result.YES; } });";
 
     QString script = QString("echo '%1' | base64 -d > /etc/udev/rules.d/z60_flashrom.rules && "
                              "echo '%2' | base64 -d > /etc/polkit-1/rules.d/10-flashrom.rules && "
                              "chmod 644 /etc/udev/rules.d/z60_flashrom.rules && "
                              "chmod 644 /etc/polkit-1/rules.d/10-flashrom.rules && "
                              "udevadm control --reload-rules && udevadm trigger")
-                     .arg(udevContent.toUtf8().toBase64(), polkitRule.toUtf8().toBase64());
+                     .arg(QString(udevContent.toUtf8().toBase64()), QString(polkitRule.toUtf8().toBase64()));
 
     QProcess::execute("pkexec", {"bash", "-c", script});
     QThread::msleep(500);

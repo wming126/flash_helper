@@ -11,14 +11,14 @@ execute_process(
 
 # Fallback version if git fails
 if(NOT GIT_RESULT EQUAL 0 OR GIT_VERSION STREQUAL "")
-    set(GIT_VERSION "1.1.2")
+    set(GIT_VERSION "1.1.3")
 endif()
 
-# Extract numeric part for project() (e.g. 1.1.2 from v1.1.2-...)
+# Extract numeric part for project() (e.g. 1.1.3 from v1.1.3-...)
 if(GIT_VERSION MATCHES "^v?([0-9]+\\.[0-9]+\\.[0-9]+)")
     set(PROJECT_VERSION_NUMERIC ${CMAKE_MATCH_1})
 else()
-    set(PROJECT_VERSION_NUMERIC "1.1.2")
+    set(PROJECT_VERSION_NUMERIC "1.1.3")
 endif()
 
 # Strip 'v' prefix from GIT_VERSION for package naming if it exists
