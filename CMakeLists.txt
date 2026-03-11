@@ -45,11 +45,11 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 set(PROJECT_SOURCES
-    main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    mainwindow.ui
-    resources.qrc
+    src/main.cpp
+    src/mainwindow.cpp
+    src/mainwindow.h
+    src/mainwindow.ui
+    res/resources.qrc
 )
 
 add_executable(FlashHelper ${PROJECT_SOURCES})
@@ -102,14 +102,14 @@ include(CPack)
 
 # 6. Install desktop entry (Standard path)
 install(CODE "
-    file(READ \"${CMAKE_SOURCE_DIR}/flashhelper.desktop\" DESKTOP_CONTENT)
+    file(READ \"${CMAKE_SOURCE_DIR}/deploy/flashhelper.desktop\" DESKTOP_CONTENT)
     string(REPLACE \"Exec=FlashHelper\" \"Exec=/opt/flashhelper/bin/FlashHelper\" DESKTOP_CONTENT \"\${DESKTOP_CONTENT}\")
     string(REPLACE \"Icon=flashhelper\" \"Icon=/usr/share/icons/hicolor/scalable/apps/flashhelper.svg\" DESKTOP_CONTENT \"\${DESKTOP_CONTENT}\")
     file(WRITE \"\$ENV{DESTDIR}/usr/share/applications/flashhelper.desktop\" \"\${DESKTOP_CONTENT}\")
 ")
 
 # 7. Install icon (Standard path)
-install(FILES flashhelper.svg DESTINATION /usr/share/icons/hicolor/scalable/apps)
+install(FILES res/flashhelper.svg DESTINATION /usr/share/icons/hicolor/scalable/apps)
 
 # 8. Install Polkit policy (Standard path)
-install(FILES com.robin.flashhelper.policy DESTINATION /usr/share/polkit-1/actions)
+install(FILES deploy/com.robin.flashhelper.policy DESTINATION /usr/share/polkit-1/actions)

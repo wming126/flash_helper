@@ -14,8 +14,8 @@ mkdir -p $APPDIR/usr/share/applications
 
 # 复制文件
 cp build/FlashHelper $APPDIR/usr/bin/
-cp flashhelper.svg $APPDIR/usr/share/icons/hicolor/scalable/apps/
-cp flashhelper.desktop $APPDIR/usr/share/applications/
+cp res/flashhelper.svg $APPDIR/usr/share/icons/hicolor/scalable/apps/
+cp deploy/flashhelper.desktop $APPDIR/usr/share/applications/
 
 # 将 flashrom 核心也打包进去 (实现真正的零依赖)
 FLASHROM_BIN=$(which flashrom)
@@ -38,6 +38,6 @@ fi
 
 # 开始构建 AppImage (自动吸入所有库，包括 Qt6)
 export QMAKE=/usr/bin/qmake6
-./linuxdeploy-x86_64.AppImage --appdir $APPDIR --plugin qt --output appimage --desktop-file flashhelper.desktop --icon-file flashhelper.svg
+./linuxdeploy-x86_64.AppImage --appdir $APPDIR --plugin qt --output appimage --desktop-file deploy/flashhelper.desktop --icon-file res/flashhelper.svg
 
 echo "Done! FlashHelper-x86_64.AppImage has been generated."

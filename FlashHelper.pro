@@ -7,14 +7,14 @@ TEMPLATE = app
 CONFIG += c++17
 
 SOURCES += \
-    main.cpp \
-    mainwindow.cpp
+    src/main.cpp \
+    src/mainwindow.cpp
 
 HEADERS += \
-    mainwindow.h
+    src/mainwindow.h
 
 FORMS += \
-    mainwindow.ui
+    src/mainwindow.ui
 
 # Add packaging info (simplified for qmake)
 target.path = /usr/bin
