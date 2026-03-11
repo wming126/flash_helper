@@ -24,6 +24,8 @@ private slots:
     void on_btnRead_clicked();
     void on_btnWrite_clicked();
     void on_btnErase_clicked();
+    void on_btnInstallRules_clicked();
+    void on_btnRemoveRules_clicked();
     void readProcessOutput();
     void processFinished(int exitCode);
 
@@ -32,6 +34,7 @@ private:
     QProcess *process;
     QString currentFile;
 
+    void updateSystemStatus();
     QString getProgrammerArgs();
     void log(const QString &msg, const QString &color = "white");
     void runCommand(const QString &cmd, const QStringList &args);

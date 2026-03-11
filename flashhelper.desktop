@@ -3,6 +3,6 @@ Type=Application
 Name=FlashHelper
 Comment=BIOS Flashing Tool GUI
 Exec=FlashHelper
-Icon=utilities-terminal
+Icon=flashhelper
 Terminal=false
 Categories=System;Utility;

@@ -16,6 +16,7 @@ set(PROJECT_SOURCES
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+    resources.qrc
 )
 
 add_executable(FlashHelper ${PROJECT_SOURCES})
@@ -33,10 +34,10 @@ set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 
 # DEB specific
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Robin <robin@example.com>")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "flashrom, coreutils")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "flashrom, coreutils, libqt6widgets6, libqt6gui6, libqt6core6")
 
 # RPM specific
-set(CPACK_RPM_PACKAGE_REQUIRES "flashrom, coreutils")
+set(CPACK_RPM_PACKAGE_REQUIRES "flashrom, coreutils, qt6-qtbase-gui")
 
 include(CPack)
 
@@ -44,6 +45,9 @@ install(TARGETS FlashHelper DESTINATION bin)
 
 # Install desktop entry
 install(FILES flashhelper.desktop DESTINATION share/applications)
+
+# Install icon
+install(FILES flashhelper.svg DESTINATION share/icons/hicolor/scalable/apps)
 
 # Install Polkit policy (important: this MUST go to this specific path)
 install(FILES com.robin.flashhelper.policy DESTINATION share/polkit-1/actions)

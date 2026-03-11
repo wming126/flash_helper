@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>flashhelper.svg</file>
+    </qresource>
+</RCC>
