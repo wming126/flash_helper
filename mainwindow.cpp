@@ -104,7 +104,7 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
 
 void MainWindow::on_btnDetect_clicked() { currentState = State::Detecting; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); }
 void MainWindow::on_btnRead_clicked() {
-    QString savePath = QFileDialog::getOpenFileName(this, "Save BIOS File", "backup.bin", "BIOS files (*.bin *.fd);;All files (*.*)");
+    QString savePath = QFileDialog::getSaveFileName(this, "Save BIOS File", "backup.bin", "BIOS files (*.bin *.fd);;All files (*.*)");
     if (savePath.isEmpty()) return;
     currentState = State::Reading;
     runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", savePath});
