@@ -25,10 +25,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
             this, &MainWindow::processFinished);
+ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
+ui->comboProgrammer->addItem(tr("CH341A SPI"), "ch341a_spi");
+ui->comboProgrammer->addItem(tr("FT2232 SPI"), "ft2232_spi");
+ui->comboProgrammer->addItem(tr("Bus Pirate SPI"), "buspirate_spi:dev=/dev/ttyUSB0");
+ui->comboProgrammer->addItem(tr("Dediprog"), "dediprog");
+ui->comboProgrammer->addItem(tr("STLINK-V3 SPI"), "stlinkv3_spi");
+ui->comboProgrammer->addItem(tr("PICkit 2 SPI"), "pickit2_spi");
+ui->comboProgrammer->addItem(tr("DirtyJTAG SPI"), "dirtyjtag_spi");
+ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
+ui->comboProgrammer->addItem(tr("Linux MTD"), "linux_mtd");
+ui->comboProgrammer->addItem(tr("Dummy (Test only)"), "dummy");
 
-    ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
-    ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
-
+// LoongArch Specific
     ui->comboSpeed->addItem("36 MHz", "36000000");
     ui->comboSpeed->addItem("20 MHz", "20000000");
     ui->comboSpeed->addItem("16 MHz", "16000000");
@@ -48,9 +57,20 @@ MainWindow::MainWindow(QWidget *parent)
 
     updateSystemStatus();
     ui->statusbar->showMessage(tr("Idle"));
+    on_comboProgrammer_currentIndexChanged(ui->comboProgrammer->currentIndex());
 }
 
 MainWindow::~MainWindow() { delete ui; }
+
+void MainWindow::on_comboProgrammer_currentIndexChanged(int index) {
+    QString data = ui->comboProgrammer->itemData(index).toString();
+    // 只有明确支持速率设置的驱动才启用下拉框
+    bool supportsSpeed = data.contains("serprog") || data.contains("linux_spi");
+    ui->comboSpeed->setEnabled(supportsSpeed);
+    if (!supportsSpeed) {
+        ui->comboSpeed->setCurrentIndex(0); // 设为“默认”
+    }
+}
 
 void MainWindow::showLogContextMenu(const QPoint &pos) {
     QMenu menu(this);
@@ -83,9 +103,16 @@ void MainWindow::updateSystemStatus() {
 }
 
 void MainWindow::on_btnInstallRules_clicked() {
-    QString udevContent = "# STM32 VSerprog\n"
+    QString udevContent = "# Flashrom Programmers\n"
                           "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"5740\", TAG+=\"uaccess\"\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"5512\", TAG+=\"uaccess\"\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6010\", TAG+=\"uaccess\"\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"dada\", TAG+=\"uaccess\"\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"374e\", TAG+=\"uaccess\"\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"374f\", TAG+=\"uaccess\"\n"
+                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"04d8\", ATTRS{idProduct}==\"0033\", TAG+=\"uaccess\"\n"
                           "KERNEL==\"ttyACM*\", TAG+=\"uaccess\"\n"
+                          "KERNEL==\"ttyUSB*\", TAG+=\"uaccess\"\n"
                           "KERNEL==\"spidev*\", TAG+=\"uaccess\"\n";
     QString polkitRule = "polkit.addRule(function(action, subject) { "
                          "if (action.id == \"org.freedesktop.policykit.exec\" && "
@@ -259,7 +286,8 @@ void MainWindow::log(const QString &msg, const QString &color) { ui->textLog->ap
 QString MainWindow::getProgrammerArgs() {
     QString base = ui->comboProgrammer->currentData().toString();
     QString speed = ui->comboSpeed->currentData().toString();
-    if (!speed.isEmpty()) {
+    // 仅针对 serprog 和 linux_spi 追加速率参数
+    if (!speed.isEmpty() && (base.contains("serprog") || base.contains("linux_spi"))) {
         base += ",spispeed=" + speed;
     }
     return base;

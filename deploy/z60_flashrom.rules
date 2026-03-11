@@ -1,6 +1,20 @@
-# STM32 VSerprog (Typical IDs)
+# Flashrom Programmers
+# STM32 VSerprog
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", MODE:="0666"
-# Generic ACM (ttyACM0)
+# CH341A
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5512", MODE:="0666"
+# FT2232
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6010", MODE:="0666"
+# Dediprog
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="dada", MODE:="0666"
+# STLINK-V3
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374e", MODE:="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374f", MODE:="0666"
+# PICkit 2
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="0033", MODE:="0666"
+
+# Generic ACM and USB Serial
 KERNEL=="ttyACM*", MODE:="0666"
+KERNEL=="ttyUSB*", MODE:="0666"
 # Linux SPI (spidev)
 KERNEL=="spidev*", MODE:="0666"

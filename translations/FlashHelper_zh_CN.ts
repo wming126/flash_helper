@@ -187,5 +187,41 @@
         <source>Linux SPI</source>
         <translation>Linux SPI</translation>
     </message>
+    <message>
+        <source>CH341A SPI</source>
+        <translation>CH341A SPI</translation>
+    </message>
+    <message>
+        <source>FT2232 SPI</source>
+        <translation>FT2232 SPI</translation>
+    </message>
+    <message>
+        <source>Bus Pirate SPI</source>
+        <translation>Bus Pirate SPI</translation>
+    </message>
+    <message>
+        <source>Dediprog</source>
+        <translation>Dediprog</translation>
+    </message>
+    <message>
+        <source>STLINK-V3 SPI</source>
+        <translation>STLINK-V3 SPI</translation>
+    </message>
+    <message>
+        <source>PICkit 2 SPI</source>
+        <translation>PICkit 2 SPI</translation>
+    </message>
+    <message>
+        <source>DirtyJTAG SPI</source>
+        <translation>DirtyJTAG SPI</translation>
+    </message>
+    <message>
+        <source>Linux MTD</source>
+        <translation>Linux MTD</translation>
+    </message>
+    <message>
+        <source>Dummy (Test only)</source>
+        <translation>虚拟设备 (仅测试)</translation>
+    </message>
 </context>
 </TS>

@@ -29,6 +29,7 @@ private slots:
     void readProcessOutput();
     void processFinished(int exitCode);
     void showLogContextMenu(const QPoint &pos);
+    void on_comboProgrammer_currentIndexChanged(int index);
 
 private:
     Ui::MainWindow *ui;
