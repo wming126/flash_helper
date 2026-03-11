@@ -140,6 +140,46 @@
         <translation>文件处理过程中合并失败！</translation>
     </message>
     <message>
+        <source>Idle</source>
+        <translation>空闲</translation>
+    </message>
+    <message>
+        <source>Detecting chip...</source>
+        <translation>正在检测芯片...</translation>
+    </message>
+    <message>
+        <source>Reading flash...</source>
+        <translation>正在读取固件...</translation>
+    </message>
+    <message>
+        <source>Erasing flash...</source>
+        <translation>正在擦除固件...</translation>
+    </message>
+    <message>
+        <source>Writing flash...</source>
+        <translation>正在写入固件...</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Size mismatch, preparing...</source>
+        <translation>智能合并: 大小不匹配，正在准备...</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Step 1/3 - Reading...</source>
+        <translation>智能合并: 步骤 1/3 - 正在读取...</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Step 2/3 - Merging...</source>
+        <translation>智能合并: 步骤 2/3 - 正在合并...</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Step 3/3 - Writing...</source>
+        <translation>智能合并: 步骤 3/3 - 正在写入...</translation>
+    </message>
+    <message>
+        <source>Smart Merge Failed</source>
+        <translation>智能合并失败</translation>
+    </message>
+    <message>
         <source>Serprog (STM32)</source>
         <translation>Serprog (STM32)</translation>
     </message>

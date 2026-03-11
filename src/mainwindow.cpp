@@ -11,6 +11,7 @@
 #include <QStandardPaths>
 #include <QMenu>
 #include <QAction>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -46,6 +47,7 @@ MainWindow::MainWindow(QWidget *parent)
     QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
 
     updateSystemStatus();
+    ui->statusbar->showMessage(tr("Idle"));
 }
 
 MainWindow::~MainWindow() { delete ui; }
@@ -128,18 +130,30 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
     process->start(finalCmd, finalArgs);
 }
 
-void MainWindow::on_btnDetect_clicked() { currentState = State::Detecting; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); }
+void MainWindow::on_btnDetect_clicked() { 
+    currentState = State::Detecting; 
+    ui->statusbar->showMessage(tr("Detecting chip..."));
+    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); 
+}
 void MainWindow::on_btnRead_clicked() {
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save BIOS File"), "backup.bin", tr("BIOS files (*.bin *.fd);;All files (*.*)"));
     if (savePath.isEmpty()) return;
     currentState = State::Reading;
+    ui->statusbar->showMessage(tr("Reading flash..."));
     runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", savePath});
 }
-void MainWindow::on_btnErase_clicked() { if (QMessageBox::question(this, tr("Confirm"), tr("ERASE flash?")) == QMessageBox::Yes) { currentState = State::Erasing; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-E"}); } }
+void MainWindow::on_btnErase_clicked() { 
+    if (QMessageBox::question(this, tr("Confirm"), tr("ERASE flash?")) == QMessageBox::Yes) { 
+        currentState = State::Erasing; 
+        ui->statusbar->showMessage(tr("Erasing flash..."));
+        runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-E"}); 
+    } 
+}
 void MainWindow::on_btnWrite_clicked() {
     currentFile = ui->lineFile->text();
     if (!QFile::exists(currentFile)) return;
     currentState = State::Writing;
+    ui->statusbar->showMessage(tr("Writing flash..."));
     runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-w", currentFile});
 }
 
@@ -159,16 +173,26 @@ void MainWindow::handleSmartWrite(const QString &error) {
         lastInfo.flashSize = match.captured(2).toLong();
         if (lastInfo.fileSize < lastInfo.flashSize) {
             log(tr("Size mismatch detected. Transitions to read mode."), "cyan");
+            ui->statusbar->showMessage(tr("Smart Merge: Size mismatch, preparing..."));
             currentState = State::SmartRead;
         }
     }
 }
 
 void MainWindow::processFinished(int exitCode) {
+    auto restoreIdle = [this]() {
+        QTimer::singleShot(5000, this, [this]() {
+            if (currentState == State::Idle) {
+                ui->statusbar->showMessage(tr("Idle"));
+            }
+        });
+    };
+
     if (exitCode != 0) {
         // 如果是在 Writing 失败后进入的 SmartRead 阶段，触发读取
         if (currentState == State::SmartRead) {
             log(tr("Smart Merge Flow: Step 1/3 - Reading current flash content..."), "cyan");
+            ui->statusbar->showMessage(tr("Smart Merge: Step 1/3 - Reading..."));
             // 修正路径：使用安全的 getWorkPath
             QString targetPath = getWorkPath("readx.bin");
             QFile::remove(targetPath); // 确保没有残留
@@ -178,7 +202,9 @@ void MainWindow::processFinished(int exitCode) {
         }
         
         log(tr("Operation Failed"), "red");
+        ui->statusbar->showMessage(tr("Operation Failed"), 5000);
         currentState = State::Idle;
+        restoreIdle();
         return;
     }
 
@@ -186,6 +212,7 @@ void MainWindow::processFinished(int exitCode) {
     if (currentState == State::Reading && QFile::exists(getWorkPath("readx.bin"))) {
         // 如果当前是 Reading 状态，且我们预期的备份文件存在，说明 Step 1 结束了
         log(tr("Step 2/3: Merging files..."), "cyan");
+        ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 - Merging..."));
         QFile flashFile(getWorkPath("readx.bin"));
         QFile newFile(currentFile);
         QFile outFile(getWorkPath("tempx.bin"));
@@ -200,19 +227,24 @@ void MainWindow::processFinished(int exitCode) {
                 layout.write(QString("00000000:%1 flashzone").arg(lastInfo.fileSize - 1, 8, 16, QChar('0')).toUtf8());
                 layout.close();
                 log(tr("Step 3/3: Writing to flashzone..."), "cyan");
+                ui->statusbar->showMessage(tr("Smart Merge: Step 3/3 - Writing..."));
                 currentState = State::SmartWrite;
                 runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-l", getWorkPath("flashrom.layout"), "-i", "flashzone", "-w", getWorkPath("tempx.bin")});
                 return;
             }
         }
         log(tr("Merge failed during file processing!"), "red");
+        ui->statusbar->showMessage(tr("Smart Merge Failed"), 5000);
     } else if (currentState == State::SmartWrite) {
         log(tr("Smart Write Successful!"), "green");
+        ui->statusbar->showMessage(tr("Smart Write Successful!"), 5000);
         QFile::remove(getWorkPath("readx.bin")); QFile::remove(getWorkPath("tempx.bin")); QFile::remove(getWorkPath("flashrom.layout"));
     } else {
         log(tr("Operation Successful"), "green");
+        ui->statusbar->showMessage(tr("Operation Successful"), 5000);
     }
     currentState = State::Idle;
+    restoreIdle();
 }
 
 void MainWindow::on_btnBrowse_clicked() {
