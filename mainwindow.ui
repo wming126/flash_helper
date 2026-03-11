@@ -37,6 +37,16 @@
           <item>
            <widget class="QComboBox" name="comboProgrammer"/>
           </item>
+          <item>
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Speed:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="comboSpeed"/>
+          </item>
          </layout>
         </item>
         <item>

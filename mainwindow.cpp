@@ -9,6 +9,8 @@
 #include <QDir>
 #include <QThread>
 #include <QStandardPaths>
+#include <QMenu>
+#include <QAction>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -23,8 +25,22 @@ MainWindow::MainWindow(QWidget *parent)
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
             this, &MainWindow::processFinished);
 
-    ui->comboProgrammer->addItem("Serprog (STM32)", "serprog:dev=/dev/ttyACM0:4000000,spispeed=36000000");
-    ui->comboProgrammer->addItem("Linux SPI", "linux_spi:dev=/dev/spidev1.0,spispeed=20000");
+    ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
+    ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
+
+    ui->comboSpeed->addItem("36 MHz", "36000000");
+    ui->comboSpeed->addItem("20 MHz", "20000000");
+    ui->comboSpeed->addItem("16 MHz", "16000000");
+    ui->comboSpeed->addItem("8 MHz", "8000000");
+    ui->comboSpeed->addItem("4 MHz", "4000000");
+    ui->comboSpeed->addItem("2 MHz", "2000000");
+    ui->comboSpeed->addItem("1 MHz", "1000000");
+    ui->comboSpeed->addItem("512 kHz", "512000");
+    ui->comboSpeed->addItem("256 kHz", "256000");
+    ui->comboSpeed->addItem("128 kHz", "128000");
+
+    ui->textLog->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->textLog, &QWidget::customContextMenuRequested, this, &MainWindow::showLogContextMenu);
 
     // 预创建数据目录
     QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
@@ -33,6 +49,13 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 MainWindow::~MainWindow() { delete ui; }
+
+void MainWindow::showLogContextMenu(const QPoint &pos) {
+    QMenu menu(this);
+    QAction *clearAction = menu.addAction(tr("Clear Log"));
+    connect(clearAction, &QAction::triggered, ui->textLog, &QTextEdit::clear);
+    menu.exec(ui->textLog->mapToGlobal(pos));
+}
 
 // 安全的工作路径（位于用户家目录，避免权限冲突）
 QString getWorkPath(const QString &name) {
@@ -52,8 +75,8 @@ void MainWindow::updateSystemStatus() {
     bool permissionDenied = out.contains("Permission denied") || out.contains("Access denied");
     bool udevFile = QFile::exists("/etc/udev/rules.d/z60_flashrom.rules");
 
-    ui->lblUdevStatus->setText(permissionDenied ? "Hardware Access: <font color='red'>Denied (Requires Root)</font>" : "Hardware Access: <font color='green'>OK (Direct Access)</font>");
-    ui->lblPolkitStatus->setText(udevFile ? "System Config: <font color='green'>Rules Installed</font>" : "System Config: <font color='red'>Not Configured</font>");
+    ui->lblUdevStatus->setText(permissionDenied ? tr("Hardware Access: <font color='red'>Denied (Requires Root)</font>") : tr("Hardware Access: <font color='green'>OK (Direct Access)</font>"));
+    ui->lblPolkitStatus->setText(udevFile ? tr("System Config: <font color='green'>Rules Installed</font>") : tr("System Config: <font color='red'>Not Configured</font>"));
     ui->btnRemoveRules->setEnabled(udevFile);
 }
 
@@ -95,24 +118,24 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
         if (ui->lblUdevStatus->text().contains("OK")) {
             finalCmd = flashromPath;
             finalArgs.removeFirst();
-            ui->textLog->append("<font color='gray'>[Direct Hardware Access]</font>");
+            ui->textLog->append(tr("<font color='gray'>[Direct Hardware Access]</font>"));
         } else {
             finalArgs[0] = flashromPath;
         }
     }
     
-    ui->textLog->append(QString("<b>Running: %1 %2</b>").arg(finalCmd, finalArgs.join(" ")));
+    ui->textLog->append(tr("<b>Running: %1 %2</b>").arg(finalCmd, finalArgs.join(" ")));
     process->start(finalCmd, finalArgs);
 }
 
 void MainWindow::on_btnDetect_clicked() { currentState = State::Detecting; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); }
 void MainWindow::on_btnRead_clicked() {
-    QString savePath = QFileDialog::getSaveFileName(this, "Save BIOS File", "backup.bin", "BIOS files (*.bin *.fd);;All files (*.*)");
+    QString savePath = QFileDialog::getSaveFileName(this, tr("Save BIOS File"), "backup.bin", tr("BIOS files (*.bin *.fd);;All files (*.*)"));
     if (savePath.isEmpty()) return;
     currentState = State::Reading;
     runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", savePath});
 }
-void MainWindow::on_btnErase_clicked() { if (QMessageBox::question(this, "Confirm", "ERASE flash?") == QMessageBox::Yes) { currentState = State::Erasing; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-E"}); } }
+void MainWindow::on_btnErase_clicked() { if (QMessageBox::question(this, tr("Confirm"), tr("ERASE flash?")) == QMessageBox::Yes) { currentState = State::Erasing; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-E"}); } }
 void MainWindow::on_btnWrite_clicked() {
     currentFile = ui->lineFile->text();
     if (!QFile::exists(currentFile)) return;
@@ -135,7 +158,7 @@ void MainWindow::handleSmartWrite(const QString &error) {
         lastInfo.fileSize = match.captured(1).toLong();
         lastInfo.flashSize = match.captured(2).toLong();
         if (lastInfo.fileSize < lastInfo.flashSize) {
-            log("Size mismatch detected. Transitions to read mode.", "cyan");
+            log(tr("Size mismatch detected. Transitions to read mode."), "cyan");
             currentState = State::SmartRead;
         }
     }
@@ -145,7 +168,7 @@ void MainWindow::processFinished(int exitCode) {
     if (exitCode != 0) {
         // 如果是在 Writing 失败后进入的 SmartRead 阶段，触发读取
         if (currentState == State::SmartRead) {
-            log("Smart Merge Flow: Step 1/3 - Reading current flash content...", "cyan");
+            log(tr("Smart Merge Flow: Step 1/3 - Reading current flash content..."), "cyan");
             // 修正路径：使用安全的 getWorkPath
             QString targetPath = getWorkPath("readx.bin");
             QFile::remove(targetPath); // 确保没有残留
@@ -154,7 +177,7 @@ void MainWindow::processFinished(int exitCode) {
             return;
         }
         
-        log("Operation Failed", "red");
+        log(tr("Operation Failed"), "red");
         currentState = State::Idle;
         return;
     }
@@ -162,7 +185,7 @@ void MainWindow::processFinished(int exitCode) {
     // exitCode == 0 的逻辑
     if (currentState == State::Reading && QFile::exists(getWorkPath("readx.bin"))) {
         // 如果当前是 Reading 状态，且我们预期的备份文件存在，说明 Step 1 结束了
-        log("Step 2/3: Merging files...", "cyan");
+        log(tr("Step 2/3: Merging files..."), "cyan");
         QFile flashFile(getWorkPath("readx.bin"));
         QFile newFile(currentFile);
         QFile outFile(getWorkPath("tempx.bin"));
@@ -176,24 +199,24 @@ void MainWindow::processFinished(int exitCode) {
             if (layout.open(QIODevice::WriteOnly)) {
                 layout.write(QString("00000000:%1 flashzone").arg(lastInfo.fileSize - 1, 8, 16, QChar('0')).toUtf8());
                 layout.close();
-                log("Step 3/3: Writing to flashzone...", "cyan");
+                log(tr("Step 3/3: Writing to flashzone..."), "cyan");
                 currentState = State::SmartWrite;
                 runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-l", getWorkPath("flashrom.layout"), "-i", "flashzone", "-w", getWorkPath("tempx.bin")});
                 return;
             }
         }
-        log("Merge failed during file processing!", "red");
+        log(tr("Merge failed during file processing!"), "red");
     } else if (currentState == State::SmartWrite) {
-        log("Smart Write Successful!", "green");
+        log(tr("Smart Write Successful!"), "green");
         QFile::remove(getWorkPath("readx.bin")); QFile::remove(getWorkPath("tempx.bin")); QFile::remove(getWorkPath("flashrom.layout"));
     } else {
-        log("Operation Successful", "green");
+        log(tr("Operation Successful"), "green");
     }
     currentState = State::Idle;
 }
 
 void MainWindow::on_btnBrowse_clicked() {
-    QString fileName = QFileDialog::getOpenFileName(this, "Open BIOS File", "", "BIOS files (*.fd *.bin *.rom);;All files (*.*)");
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS File"), "", tr("BIOS files (*.fd *.bin *.rom);;All files (*.*)"));
     if (!fileName.isEmpty()) {
         ui->lineFile->setText(fileName);
         currentFile = fileName;
@@ -201,4 +224,11 @@ void MainWindow::on_btnBrowse_clicked() {
 }
 
 void MainWindow::log(const QString &msg, const QString &color) { ui->textLog->append(QString("<font color=\"%1\">%2</font>").arg(color, msg.toHtmlEscaped())); }
-QString MainWindow::getProgrammerArgs() { return ui->comboProgrammer->currentData().toString(); }
+QString MainWindow::getProgrammerArgs() {
+    QString base = ui->comboProgrammer->currentData().toString();
+    QString speed = ui->comboSpeed->currentData().toString();
+    if (!speed.isEmpty()) {
+        base += ",spispeed=" + speed;
+    }
+    return base;
+}

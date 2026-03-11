@@ -28,6 +28,7 @@ private slots:
     void on_btnRemoveRules_clicked();
     void readProcessOutput();
     void processFinished(int exitCode);
+    void showLogContextMenu(const QPoint &pos);
 
 private:
     Ui::MainWindow *ui;
