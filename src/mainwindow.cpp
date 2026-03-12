@@ -16,6 +16,8 @@
 #include <QCompleter>
 #include <QDebug>
 #include <QInputDialog>
+#include <QGroupBox>
+#include <QAbstractItemView>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -31,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
     process = new QProcess(this);
     
     // Initialize Chip Preview Widget with a group box for better UI
-    QGroupBox *previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
+    previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
     QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
     chipPreview = new ChipPreviewWidget(this);
     previewLayout->addWidget(chipPreview);
@@ -64,6 +66,14 @@ MainWindow::MainWindow(QWidget *parent)
     // Note: previewGroup will be moved between tabs
     ui->verticalLayout_eeprom->addWidget(eepContent);
 
+    ui->comboChip->setMinimumWidth(350);
+    ui->comboChip->setMaxVisibleItems(20);
+    ui->comboChip->view()->setMinimumWidth(400); // 允许下拉列表比框本身更宽
+
+    ui->comboEepromChip->setMinimumWidth(350);
+    ui->comboEepromChip->setMaxVisibleItems(20);
+    ui->comboEepromChip->view()->setMinimumWidth(400);
+
     connect(ui->comboChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         chipPreview->setChipModel(text);
     });
@@ -71,9 +81,9 @@ MainWindow::MainWindow(QWidget *parent)
         chipPreview->setChipModel(text);
     });
     
-    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this, previewGroup, spiMainLayout, eepMainLayout](int index) {
-        if (index == 0) spiMainLayout->addWidget(previewGroup);
-        else if (index == 1) eepMainLayout->addWidget(previewGroup);
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this, spiMainLayout, eepMainLayout](int index) {
+        if (index == 0) spiMainLayout->addWidget(this->previewGroup);
+        else if (index == 1) eepMainLayout->addWidget(this->previewGroup);
     });
 
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
@@ -161,18 +171,9 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() { delete ui; }
 
 QString MainWindow::getFlashromPath() {
-    // Force get flashrom from the same directory as the application
-    // In AppImage, this points to usr/bin/flashrom inside the mount point
     QString localPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashrom");
-    
-    if (QFile::exists(localPath)) {
-        return localPath;
-    }
-    
-    // If bundled flashrom is not found, stop searching and record error
-    // This ensures tool purity and avoids version conflicts
-    qDebug() << "CRITICAL: Bundled flashrom not found at:" << localPath;
-    return "flashrom"; // Fallback, but localPath should always exist in AppImage
+    if (QFile::exists(localPath)) return localPath;
+    return "flashrom";
 }
 
 void MainWindow::fetchSupportedChips() {
@@ -184,27 +185,52 @@ void MainWindow::fetchSupportedChips() {
         supportedChips.clear();
         supportedChips << tr("Auto Detect");
         
-        bool start = false;
-        for (const QString &line : lines) {
-            QString trimmed = line.trimmed();
-            if (trimmed.contains("Vendor") && trimmed.contains("Device")) { start = true; continue; }
+        bool inFlashSection = false;
+        QString lastVendor;
+
+        for (int i = 0; i < lines.size(); ++i) {
+            QString trimmed = lines[i].trimmed();
+            if (trimmed.isEmpty()) continue;
+
+            // Section markers
+            if (trimmed.contains("Supported flash chips")) { inFlashSection = true; continue; }
+            if (inFlashSection && (trimmed.startsWith("Supported ") || trimmed.startsWith("---"))) { inFlashSection = false; }
+            if (trimmed.contains("Supported PCI devices")) { inFlashSection = false; break; }
+
+            if (!inFlashSection) continue;
+
+            // Filter out explanation lines and headers
             if (trimmed.startsWith("==") || trimmed.startsWith("--") || trimmed.startsWith("(")) continue;
+            if (trimmed.contains(":") || trimmed.contains("=") || trimmed.contains("https://")) continue;
             
-            if (start && !trimmed.isEmpty()) {
-                QStringList parts = trimmed.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
-                if (parts.size() >= 2) {
-                    if (parts[0] == "Vendor" || parts[0] == "Known" || parts[0] == "OK") continue;
-                    QString vendor = parts[0];
-                    QString chipModel = parts[1];
-                    supportedChips << chipModel;
-                    supportedChips << QString("%1 %2").arg(vendor, chipModel);
+            QStringList parts = trimmed.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            if (parts.isEmpty()) continue;
+
+            // Handle table headers and status words
+            QString first = parts[0];
+            if (first == "Vendor" || first == "Device" || first == "Test" || first == "Known" || 
+                first == "Size" || first == "Type" || first == "OK" || first == "Broken") continue;
+
+            if (parts.size() >= 2) {
+                lastVendor = parts[0];
+                QString model = parts[1];
+                supportedChips << model;
+                supportedChips << QString("%1 %2").arg(lastVendor, model);
+            } else if (parts.size() == 1 && !lastVendor.isEmpty()) {
+                QString subModel = parts[0];
+                if (subModel.length() > 2 && !subModel.contains("(")) {
+                    supportedChips << subModel;
+                    supportedChips << QString("%1 %2").arg(lastVendor, subModel);
                 }
             }
         }
+
         supportedChips.removeDuplicates();
-        QString autoStr = supportedChips.takeFirst();
-        supportedChips.sort();
-        supportedChips.prepend(autoStr);
+        if (supportedChips.size() > 0) {
+            QString autoStr = supportedChips.takeFirst();
+            supportedChips.sort();
+            supportedChips.prepend(autoStr);
+        }
         
         QCompleter *completer = new QCompleter(supportedChips, this);
         completer->setCaseSensitivity(Qt::CaseInsensitive);
@@ -297,11 +323,7 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
     QString finalCmd = cmd;
     accumulatedError.clear();
     
-    // Detect currently used absolute path
     QString flashromPath = getFlashromPath();
-
-    // Auto inject -c parameter
-    // Fix: Don't inject if we are detecting, or if "Auto Detect" is selected
     QString currentChip = ui->comboChip->currentText();
     bool isAuto = (currentChip == tr("Auto Detect") || currentChip.isEmpty());
     if (!isAuto && currentState != State::Detecting && !finalArgs.contains("-c")) {
@@ -324,7 +346,6 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
             finalArgs.removeFirst();
             log(tr("[Direct Access]"), "gray");
         } else {
-            // Core fix: if flashrom is in AppImage mount point, pkexec cannot access it, copy to /tmp
             if (flashromPath.contains("/.mount_")) {
                 QString tempFlashrom = QDir::tempPath() + "/flashrom_internal_" + qgetenv("USER");
                 if (!QFile::exists(tempFlashrom) || QFile::remove(tempFlashrom)) {
@@ -345,11 +366,9 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
         }
     }
 
-    // Force log diagnostic info
     log(tr("Flashrom Path: %1").arg(flashromPath), "gray");
     log(tr("Final Command: %1 %2").arg(finalCmd, finalArgs.join(" ")), "gray");
 
-    
     QString statusText;
     switch (currentState) {
         case State::Detecting: statusText = tr("Detecting chip..."); break;
@@ -364,7 +383,6 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
         default: statusText = tr("Processing..."); break;
     }
     ui->statusbar->showMessage(statusText);
-
     process->start(finalCmd, finalArgs);
 }
 
@@ -454,6 +472,17 @@ void MainWindow::processFinished(int exitCode) {
         log(tr("Failed"), "red");
         ui->statusbar->showMessage(tr("Operation Failed"), 5000);
     } else {
+        if (currentState == State::Detecting) {
+            QRegularExpression re("Found [^ ]+ flash chip \"([^\"]+)\"");
+            QRegularExpressionMatch match = re.match(accumulatedError);
+            if (match.hasMatch()) {
+                QString chipName = match.captured(1);
+                ui->comboChip->setCurrentText(chipName);
+                ui->comboEepromChip->setCurrentText(chipName);
+                log(tr("Detected chip updated to preview: %1").arg(chipName), "cyan");
+            }
+        }
+
         if (currentState == State::Reading && QFile::exists(getWorkPath("readx.bin"))) {
             log(tr("Step 2/3: Merging"), "cyan");
             ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 (Merging)"));
@@ -483,34 +512,16 @@ void MainWindow::processFinished(int exitCode) {
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
 QString MainWindow::prepareWriteFile() {
     QByteArray data = ui->hexEditor->data();
-    if (data.isEmpty()) {
-        QMessageBox::warning(this, tr("Warning"), tr("No data to write."));
-        return QString();
-    }
-    
-    QString tempPath = getWorkPath("flash_buffer.bin");
-    QFile f(tempPath);
-    if (f.open(QIODevice::WriteOnly)) {
-        f.write(data);
-        f.close();
-        return tempPath;
-    } else {
-        QMessageBox::critical(this, tr("Error"), tr("Failed to prepare data for writing."));
-        return QString();
-    }
+    if (data.isEmpty()) { QMessageBox::warning(this, tr("Warning"), tr("No data to write.")); return QString(); }
+    QString tempPath = getWorkPath("flash_buffer.bin"); QFile f(tempPath);
+    if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); return tempPath; }
+    else { QMessageBox::critical(this, tr("Error"), tr("Failed to prepare data for writing.")); return QString(); }
 }
 void MainWindow::on_btnSaveFile_clicked() {
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save Binary File"), currentFile, tr("Binary (*.bin *.fd);;All (*.*)"));
     if (savePath.isEmpty()) return;
-    
-    QFile f(savePath);
-    if (f.open(QIODevice::WriteOnly)) {
-        f.write(ui->hexEditor->data());
-        f.close();
-        log(tr("File saved: %1").arg(savePath), "green");
-    } else {
-        log(tr("Failed to save file: %1").arg(f.errorString()), "red");
-    }
+    QFile f(savePath); if (f.open(QIODevice::WriteOnly)) { f.write(ui->hexEditor->data()); f.close(); log(tr("File saved: %1").arg(savePath), "green"); }
+    else { log(tr("Failed to save file: %1").arg(f.errorString()), "red"); }
 }
 void MainWindow::on_btnBrowse_clicked() { QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS"), "", tr("Binary (*.bin *.fd);;All (*.*)")); if (!fileName.isEmpty()) { ui->lineFile->setText(fileName); currentFile = fileName; QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } } }
 void MainWindow::log(const QString &msg, const QString &color) { ui->textLog->append(QString("<font color=\"%1\">%2</font>").arg(color, msg.toHtmlEscaped())); }
@@ -526,17 +537,10 @@ void MainWindow::on_comboLang_currentIndexChanged(int index) {
     if (!translator) return;
     QString lang = ui->comboLang->itemData(index).toString();
     qApp->removeTranslator(translator);
-    
-    if (lang == "zh_CN") {
-        if (translator->load(":/i18n/FlashHelper_zh_CN.qm")) {
-            qApp->installTranslator(translator);
-        }
-    }
-    
+    if (lang == "zh_CN") { if (translator->load(":/i18n/FlashHelper_zh_CN.qm")) { qApp->installTranslator(translator); } }
     ui->retranslateUi(this);
+    if (previewGroup) previewGroup->setTitle(tr("Chip Pinout Preview"));
     ui->statusbar->showMessage(tr("Idle"));
-    
-    // Some dynamic elements need manual refresh
     updateSystemStatus();
     fetchSupportedChips();
 }

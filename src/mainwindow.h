@@ -48,6 +48,7 @@ private:
     QString eepromFile;
     QStringList supportedChips;
     class ChipPreviewWidget *chipPreview;
+    class QGroupBox *previewGroup;
 
     void updateSystemStatus();
     void fetchSupportedChips();

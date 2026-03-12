@@ -371,12 +371,59 @@
         <source>Final Command: %1 %2</source>
         <translation>最终命令: %1 %2</translation>
     </message>
+    <message>
+        <source>Chip Pinout Preview</source>
+        <translation>芯片引脚预览</translation>
+    </message>
+    <message>
+        <source>Detected chip updated to preview: %1</source>
+        <translation>已探测到芯片并更新预览: %1</translation>
+    </message>
+    <message>
+        <source>Save Binary File</source>
+        <translation>保存二进制文件</translation>
+    </message>
+    <message>
+        <source>File saved: %1</source>
+        <translation>文件已保存: %1</translation>
+    </message>
+    <message>
+        <source>Failed to save file: %1</source>
+        <translation>保存文件失败: %1</translation>
+    </message>
+</context>
+<context>
+    <name>ChipPreviewWidget</name>
+    <message>
+        <source>WSON8 (Flat)</source>
+        <translation>WSON8 (扁平封装)</translation>
+    </message>
+    <message>
+        <source>SOP16 (16-Pin)</source>
+        <translation>SOP16 (16引脚)</translation>
+    </message>
+    <message>
+        <source>I2C SOP8</source>
+        <translation>I2C SOP8</translation>
+    </message>
+    <message>
+        <source>SPI SOP8</source>
+        <translation>SPI SOP8</translation>
+    </message>
+    <message>
+        <source>CHIP</source>
+        <translation>芯片</translation>
+    </message>
+    <message>
+        <source>Click to manually cycle package types (SOP8 -> SOP16 -> I2C -> WSON8)</source>
+        <translation>点击可手动循环切换封装类型 (SOP8 -> SOP16 -> I2C -> WSON8)</translation>
+    </message>
 </context>
 <context>
     <name>HexEditor</name>
     <message>
-        <source>No data loaded. Use 'Browse' or 'Read' to load firmware.</source>
-        <translation>未加载数据。请使用“浏览”或“读取”来加载固件。</translation>
+        <source>No data loaded.</source>
+        <translation>未加载数据。</translation>
     </message>
 </context>
 </TS>
