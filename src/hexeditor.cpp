@@ -53,7 +53,7 @@ void HexEditor::resizeEvent(QResizeEvent *event) {
     updateLayout();
 }
 
-void HexEditor::paintEvent(QPaintEvent *event) {
+void HexEditor::paintEvent(QPaintEvent *) {
     QPainter p(viewport());
     p.translate(0, -verticalScrollBar()->value());
     

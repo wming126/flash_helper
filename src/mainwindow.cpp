@@ -255,7 +255,6 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
             // 核心修复：如果 flashrom 在 AppImage 挂载点内，pkexec 无法访问，复制到 /tmp
             if (flashromPath.contains("/.mount_")) {
                 QString tempFlashrom = QDir::tempPath() + "/flashrom_internal_" + qgetenv("USER");
-                bool copySuccess = true;
                 if (!QFile::exists(tempFlashrom) || QFile::remove(tempFlashrom)) {
                     if (QFile::copy(flashromPath, tempFlashrom)) {
                         QFile::setPermissions(tempFlashrom, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner | 
@@ -264,11 +263,9 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
                         flashromPath = tempFlashrom;
                         log(tr("Prepared temp flashrom for pkexec: %1").arg(tempFlashrom), "gray");
                     } else {
-                        copySuccess = false;
                         log(tr("ERROR: Failed to copy flashrom to %1").arg(tempFlashrom), "red");
                     }
                 } else {
-                    copySuccess = false;
                     log(tr("ERROR: Failed to remove old temp flashrom at %1").arg(tempFlashrom), "red");
                 }
             }
