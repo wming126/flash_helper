@@ -441,6 +441,21 @@ QString MainWindow::getProgrammerArgs(bool isEeprom) {
     if (isEeprom) return ui->comboEepromProg->currentData().toString();
     QString base = ui->comboProgrammer->currentData().toString();
     QString speed = ui->comboSpeed->currentData().toString();
-    if (!speed.isEmpty() && (base.contains("serprog") || base.contains("linux_spi"))) base += ",spispeed=" + speed;
+    
+    if (base == "serprog") {
+        QString dev;
+        if (QFile::exists("/dev/ttyACM0")) dev = "/dev/ttyACM0";
+        else if (QFile::exists("/dev/ttyUSB0")) dev = "/dev/ttyUSB0";
+        
+        if (!dev.isEmpty()) base += ":dev=" + dev;
+        if (!speed.isEmpty()) base += ",spispeed=" + speed;
+        // 如果是 STM32 下载器，建议在 serprog 后加上波特率，这里默认假设为 115200 或固件指定的速率
+        // 脚本中常用的是 4000000
+        if (!dev.isEmpty()) base.replace(":dev=", ":dev=" + dev + ":4000000");
+    } else if (base == "linux_spi") {
+        if (QFile::exists("/dev/spidev1.0")) base += ":dev=/dev/spidev1.0";
+        if (!speed.isEmpty()) base += ",spispeed=" + speed;
+    }
+    
     return base;
 }
