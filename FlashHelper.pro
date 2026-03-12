@@ -9,11 +9,13 @@ CONFIG += c++17
 SOURCES += \
     src/main.cpp \
     src/mainwindow.cpp \
-    src/hexeditor.cpp
+    src/hexeditor.cpp \
+    src/chippreviewwidget.cpp
 
 HEADERS += \
     src/mainwindow.h \
-    src/hexeditor.h
+    src/hexeditor.h \
+    src/chippreviewwidget.h
 
 RESOURCES += \
     res/resources.qrc

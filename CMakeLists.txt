@@ -58,6 +58,8 @@ set(PROJECT_SOURCES
     src/mainwindow.ui
     src/hexeditor.cpp
     src/hexeditor.h
+    src/chippreviewwidget.cpp
+    src/chippreviewwidget.h
     res/resources.qrc
 )
 

@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "chippreviewwidget.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QRegularExpression>
@@ -29,6 +30,25 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
     
+    // Initialize Chip Preview Widget
+    chipPreview = new ChipPreviewWidget(this);
+    // Add to SPI tab layout (horizontalLayout_chip has comboChip)
+    ui->horizontalLayout_chip->addWidget(chipPreview);
+    
+    connect(ui->comboChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        chipPreview->setChipModel(text);
+    });
+    connect(ui->comboEepromChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        // Move preview to EEPROM tab if needed, but for now just update
+        chipPreview->setChipModel(text);
+    });
+    
+    // Reparent preview based on tab
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+        if (index == 0) ui->horizontalLayout_chip->addWidget(chipPreview);
+        else if (index == 1) ui->horizontalLayout_eep->addWidget(chipPreview);
+    });
+
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
