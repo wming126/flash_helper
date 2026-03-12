@@ -117,7 +117,7 @@ void HexEditor::paintEvent(QPaintEvent *event) {
                 p.setPen(palette().text().color());
             }
             
-            p.drawText(x, y, formatHex((unsigned char)m_data[pos]));
+            p.drawText(x, y, formatHex((unsigned char)m_data[(int)pos]));
         }
         
         // 3. Draw ASCII Data
@@ -138,7 +138,7 @@ void HexEditor::paintEvent(QPaintEvent *event) {
                 p.setPen(Qt::darkCyan);
             }
             
-            p.drawText(x, y, formatAscii((unsigned char)m_data[pos]));
+            p.drawText(x, y, formatAscii((unsigned char)m_data[(int)pos]));
         }
     }
     
@@ -194,14 +194,14 @@ void HexEditor::keyPressEvent(QKeyEvent *event) {
         bool ok;
         int val = event->text().toInt(&ok, 16);
         if (ok) {
-            unsigned char b = (unsigned char)m_data[m_cursorPos];
+            unsigned char b = (unsigned char)m_data[(int)m_cursorPos];
             if (m_cursorNibble == 0) {
                 b = (b & 0x0F) | (val << 4);
-                m_data[m_cursorPos] = (char)b;
+                m_data[(int)m_cursorPos] = (char)b;
                 m_cursorNibble = 1;
             } else {
                 b = (b & 0xF0) | val;
-                m_data[m_cursorPos] = (char)b;
+                m_data[(int)m_cursorPos] = (char)b;
                 if (m_cursorPos < (qint64)m_data.size() - 1) {
                     m_cursorPos++;
                     m_cursorNibble = 0;
@@ -212,8 +212,8 @@ void HexEditor::keyPressEvent(QKeyEvent *event) {
     }
     // ASCII Editing
     else if (!m_readOnly && m_asciiInputMode && event->text().length() > 0 && event->text()[0].isPrint()) {
-        m_data[m_cursorPos] = (char)event->text()[0].toLatin1();
-        if (m_cursorPos < m_data.size() - 1) m_cursorPos++;
+        m_data[(int)m_cursorPos] = (char)event->text()[0].toLatin1();
+        if (m_cursorPos < (qint64)m_data.size() - 1) m_cursorPos++;
         emit dataChanged();
     }
     // Copy
@@ -221,7 +221,7 @@ void HexEditor::keyPressEvent(QKeyEvent *event) {
         if (m_selectionStart != -1) {
             qint64 start = qMin(m_selectionStart, m_selectionEnd);
             qint64 len = qAbs(m_selectionStart - m_selectionEnd) + 1;
-            QApplication::clipboard()->setText(m_data.mid(start, len).toHex(' ').toUpper());
+            QApplication::clipboard()->setText(m_data.mid((int)start, (int)len).toHex(' ').toUpper());
         }
     }
     
