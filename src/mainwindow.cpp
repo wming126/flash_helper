@@ -99,7 +99,8 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() { delete ui; }
 
 void MainWindow::fetchSupportedChips() {
-    QString flashromPath = "/usr/sbin/flashrom";
+    QString flashromPath = QCoreApplication::applicationDirPath() + "/flashrom";
+    if (!QFile::exists(flashromPath)) flashromPath = "/usr/sbin/flashrom";
     if (!QFile::exists(flashromPath)) flashromPath = "/usr/bin/flashrom";
     
     QProcess *listProc = new QProcess(this);
@@ -113,13 +114,13 @@ void MainWindow::fetchSupportedChips() {
         for (const QString &line : lines) {
             QString trimmed = line.trimmed();
             if (trimmed.contains("Vendor") && trimmed.contains("Device")) { start = true; continue; }
-            if (trimmed.startsWith("==") || trimmed.startsWith("--")) continue;
+            if (trimmed.startsWith("==") || trimmed.startsWith("--") || trimmed.startsWith("(")) continue;
             
             if (start && !trimmed.isEmpty()) {
                 QStringList parts = trimmed.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
                 if (parts.size() >= 2) {
                     // 排除表头和杂质
-                    if (parts[0] == "Vendor" || parts[0] == "Known" || parts[0].contains("---")) continue;
+                    if (parts[0] == "Vendor" || parts[0] == "Known" || parts[0] == "OK") continue;
                     
                     QString chipModel = parts[1];
                     QString fullName = QString("%1 %2").arg(parts[0], parts[1]);
