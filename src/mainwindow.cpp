@@ -14,6 +14,8 @@
 #include <QTimer>
 #include <QCompleter>
 
+#include <QInputDialog>
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -44,8 +46,10 @@ MainWindow::MainWindow(QWidget *parent)
     QString arch = QSysInfo::currentCpuArchitecture();
     if (arch.contains("loongarch") || arch.contains("la64")) {
         ui->comboProgrammer->addItem(tr("Internal (Loongson SPI)"), "internal");
-        ui->comboProgrammer->setCurrentIndex(ui->comboProgrammer->count() - 1);
     }
+    
+    // 强制设置默认值为 Serprog (STM32)，它是列表第一个
+    ui->comboProgrammer->setCurrentIndex(0);
 
     ui->comboSpeed->addItem(tr("Default"), "");
     ui->comboSpeed->addItem("36 MHz", "36000000");
@@ -168,18 +172,28 @@ QString getWorkPath(const QString &name) {
 }
 
 void MainWindow::updateSystemStatus() {
-    QString flashromPath = "/usr/sbin/flashrom";
+    QString flashromPath = QCoreApplication::applicationDirPath() + "/flashrom";
+    if (!QFile::exists(flashromPath)) flashromPath = "/usr/sbin/flashrom";
     if (!QFile::exists(flashromPath)) flashromPath = "/usr/bin/flashrom";
-    if (!QFile::exists(flashromPath)) flashromPath = QCoreApplication::applicationDirPath() + "/flashrom";
 
     QProcess check;
     check.start(flashromPath, {"-p", getProgrammerArgs()});
     check.waitForFinished(1000);
     QString out = check.readAllStandardError() + check.readAllStandardOutput();
-    
-    bool permissionDenied = out.contains("Permission denied") || out.contains("Access denied");
-    bool udevFile = QFile::exists("/etc/udev/rules.d/z60_flashrom.rules");
 
+    bool permissionDenied = out.contains("Permission denied") || out.contains("Access denied");
+
+    // 增强检测：在 LoongArch 下直接检查串口设备是否可写
+    if (permissionDenied) {
+        QString args = getProgrammerArgs();
+        if (args.contains("serprog")) {
+            if (QFileInfo("/dev/ttyACM0").isWritable() || QFileInfo("/dev/ttyUSB0").isWritable()) {
+                permissionDenied = false; // 如果设备文件可写，即便 flashrom 报错也认为权限 OK
+            }
+        }
+    }
+
+    bool udevFile = QFile::exists("/etc/udev/rules.d/z60_flashrom.rules");
     ui->lblUdevStatus->setText(permissionDenied ? tr("Hardware Access: <font color='red'>Denied (Requires Root)</font>") : tr("Hardware Access: <font color='green'>OK (Direct Access)</font>"));
     ui->lblPolkitStatus->setText(udevFile ? tr("System Config: <font color='green'>Rules Installed</font>") : tr("System Config: <font color='red'>Not Configured</font>"));
     ui->btnRemoveRules->setEnabled(udevFile);
@@ -207,10 +221,22 @@ void MainWindow::on_btnInstallRules_clicked() {
                              "echo '%2' | base64 -d > /etc/polkit-1/rules.d/10-flashrom.rules && "
                              "chmod 644 /etc/udev/rules.d/z60_flashrom.rules && "
                              "chmod 644 /etc/polkit-1/rules.d/10-flashrom.rules && "
-                             "udevadm control --reload-rules && udevadm trigger")
-                     .arg(QString(udevContent.toUtf8().toBase64()), QString(polkitRule.toUtf8().toBase64()));
+                             "udevadm control --reload-rules && udevadm trigger && "
+                             "echo 'Checking device group...' && "
+                             "DEV_GROUP=$(stat -c '%%G' /dev/ttyACM0 2>/dev/null || stat -c '%%G' /dev/ttyUSB0 2>/dev/null); "
+                             "if [ -n \"$DEV_GROUP\" ] && [ \"$DEV_GROUP\" != \"root\" ]; then "
+                             "  echo \"Adding user to detected group: $DEV_GROUP\"; "
+                             "  usermod -aG $DEV_GROUP %3; "
+                             "else "
+                             "  echo 'No specific serial group detected, adding to dialout by default'; "
+                             "  usermod -aG dialout %3; "
+                             "fi && "
+                             "usermod -aG plugdev %3 && echo 'All permissions set.'")
+                     .arg(QString(udevContent.toUtf8().toBase64()), QString(polkitRule.toUtf8().toBase64()), qgetenv("USER"));
 
-    QProcess::execute("pkexec", {"bash", "-c", script});
+    if (QProcess::execute("pkexec", {"bash", "-c", script}) == 0) {
+        QMessageBox::information(this, tr("Success"), tr("Rules installed successfully!\n\nNOTE: You may need to RE-LOGIN for group permissions to take effect."));
+    }
     QThread::msleep(500);
     updateSystemStatus();
 }
@@ -223,15 +249,41 @@ void MainWindow::on_btnRemoveRules_clicked() {
 void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
     QStringList finalArgs = args;
     QString finalCmd = cmd;
-    QString flashromPath = "/usr/sbin/flashrom";
+    accumulatedError.clear();
+    
+    // 优先级：程序同目录 -> /usr/sbin -> /usr/bin
+    QString flashromPath = QCoreApplication::applicationDirPath() + "/flashrom";
+    if (!QFile::exists(flashromPath)) flashromPath = "/usr/sbin/flashrom";
     if (!QFile::exists(flashromPath)) flashromPath = "/usr/bin/flashrom";
-    if (!QFile::exists(flashromPath)) flashromPath = QCoreApplication::applicationDirPath() + "/flashrom";
+
+    // 核心改进：只要 UI 中选定了特定芯片，所有命令自动带上 -c 参数，防止中途报错
+    QString currentChip = ui->comboChip->currentText();
+    if (!currentChip.isEmpty() && currentChip != tr("Auto Detect") && !finalArgs.contains("-c")) {
+        // 在 -p 参数后面插入 -c
+        int pIdx = finalArgs.indexOf("-p");
+        if (pIdx != -1 && pIdx + 1 < finalArgs.size()) {
+            finalArgs.insert(pIdx + 2, "-c");
+            finalArgs.insert(pIdx + 3, currentChip);
+        }
+    }
 
     if (cmd == "pkexec" && !args.isEmpty() && args[0] == "flashrom") {
-        if (ui->lblUdevStatus->text().contains("OK")) {
+        QString progArgs = getProgrammerArgs();
+        bool isSerial = progArgs.contains("serprog") || progArgs.contains("buspirate") || progArgs.contains("ch341a");
+        
+        // 核心改进：如果是串口或 USB 编程器，且设备文件可写，强制跳过 pkexec
+        bool forceDirect = false;
+        if (isSerial) {
+            if (QFileInfo("/dev/ttyACM0").isWritable() || QFileInfo("/dev/ttyUSB0").isWritable() || 
+                ui->lblUdevStatus->text().contains("OK")) {
+                forceDirect = true;
+            }
+        }
+
+        if (forceDirect || ui->lblUdevStatus->text().contains("OK")) {
             finalCmd = flashromPath;
             finalArgs.removeFirst();
-            ui->textLog->append(tr("<font color='gray'>[Direct Hardware Access]</font>"));
+            ui->textLog->append(tr("<font color='gray'>[Direct Hardware Access Enabled]</font>"));
         } else {
             finalArgs[0] = flashromPath;
         }
@@ -332,9 +384,18 @@ void MainWindow::on_btnEepromErase_clicked() {
 void MainWindow::readProcessOutput() {
     QString output = process->readAllStandardOutput();
     QString error = process->readAllStandardError();
-    if (!output.isEmpty()) log(output, "white");
-    if (!error.isEmpty()) log(error, "yellow");
-    if (currentState == State::Writing && error.contains("expected size")) handleSmartWrite(error);
+    if (!output.isEmpty()) {
+        log(output, "white");
+        accumulatedError += output; // 同时累积 stdout
+    }
+    if (!error.isEmpty()) {
+        log(error, "yellow");
+        accumulatedError += error; // 同时累积 stderr
+    }
+    // 触发智能刷写的逻辑：文件大小不匹配
+    if (currentState == State::Writing && (error.contains("expected size") || error.contains("doesn't match"))) {
+        handleSmartWrite(error);
+    }
 }
 
 void MainWindow::handleSmartWrite(const QString &error) {
@@ -359,6 +420,57 @@ void MainWindow::processFinished(int exitCode) {
     };
 
     if (exitCode != 0) {
+        // 在任务结束报错时，精准解析芯片歧义
+        if (accumulatedError.contains("Multiple flash chip definitions match") || accumulatedError.contains("Please specify which chip definition")) {
+            detectedChips.clear();
+            // 提取所有双引号内容
+            QRegularExpression re("\"([^\"]+)\"");
+            QRegularExpressionMatchIterator i = re.globalMatch(accumulatedError);
+            QStringList blackList = {"serprog", "flashrom", "mapping", "stm32", "protocol", "none"};
+            
+            while (i.hasNext()) {
+                QString name = i.next().captured(1);
+                bool isBlacklisted = false;
+                for (const QString &key : blackList) {
+                    if (name.contains(key, Qt::CaseInsensitive)) { isBlacklisted = true; break; }
+                }
+                if (!isBlacklisted && name.length() > 3) {
+                    detectedChips << name;
+                }
+            }
+
+            if (!detectedChips.isEmpty()) {
+                QString firstChip = detectedChips.first();
+                log(tr("Conflict Found! Auto-selecting: %1").arg(firstChip), "cyan");
+                
+                ui->comboChip->setCurrentText(firstChip);
+                ui->comboEepromChip->setCurrentText(firstChip);
+                
+                State lastState = currentState;
+                detectedChips.clear();
+                accumulatedError.clear();
+                
+                // 延迟重试以确保 UI 更新，且必须严格检查重试目标
+                QTimer::singleShot(300, this, [this, lastState, firstChip]() {
+                    QStringList args = {"flashrom", "-p", getProgrammerArgs(), "-c", firstChip};
+                    if (lastState == State::Detecting) { /* keep args */ }
+                    else if (lastState == State::Reading) { args << "-r" << currentFile; }
+                    else if (lastState == State::Writing) { args << "-w" << currentFile; }
+                    else if (lastState == State::Erasing) { args << "-E"; }
+                    else if (lastState == State::SmartRead) { 
+                        // 如果是智能合并中的读取，目标必须是临时文件！
+                        args << "-r" << getWorkPath("readx.bin"); 
+                    }
+                    else return;
+                    
+                    log(tr("Auto-retrying last operation with chip: %1").arg(firstChip), "cyan");
+                    currentState = lastState;
+                    runCommand("pkexec", args);
+                });
+                return;
+            }
+        }
+
         if (currentState == State::SmartRead) {
             log(tr("Smart Merge Flow: Step 1/3 - Reading current flash content..."), "cyan");
             ui->statusbar->showMessage(tr("Smart Merge: Step 1/3 - Reading..."));

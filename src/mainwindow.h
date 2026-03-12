@@ -55,6 +55,8 @@ private:
     // Internal state management
     enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase };
     State currentState = State::Idle;
+    QStringList detectedChips;
+    QString accumulatedError;
     
     struct FlashInfo {
         long flashSize = 0;
