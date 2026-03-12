@@ -20,10 +20,10 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+    translator = new QTranslator(this);
     ui->setupUi(this);
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
-    translator = new QTranslator(this);
     
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
@@ -68,6 +68,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->comboEepromProg->addItem(tr("Linux SPI"), "linux_spi");
 
     // Language settings
+    ui->comboLang->blockSignals(true);
     ui->comboLang->addItem("English", "en");
     ui->comboLang->addItem("简体中文", "zh_CN");
     
@@ -78,6 +79,10 @@ MainWindow::MainWindow(QWidget *parent)
     } else {
         ui->comboLang->setCurrentIndex(0);
     }
+    ui->comboLang->blockSignals(false);
+
+    // Apply initial translation
+    on_comboLang_currentIndexChanged(ui->comboLang->currentIndex());
 
     ui->textLog->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->textLog, &QWidget::customContextMenuRequested, this, &MainWindow::showLogContextMenu);
