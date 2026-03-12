@@ -231,8 +231,10 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
     QString flashromPath = getFlashromPath();
 
     // Auto inject -c parameter
+    // Fix: Don't inject if we are detecting, or if "Auto Detect" is selected
     QString currentChip = ui->comboChip->currentText();
-    if (!currentChip.isEmpty() && currentChip != tr("Auto Detect") && !finalArgs.contains("-c")) {
+    bool isAuto = (currentChip == tr("Auto Detect") || currentChip.isEmpty());
+    if (!isAuto && currentState != State::Detecting && !finalArgs.contains("-c")) {
         int pIdx = finalArgs.indexOf("-p");
         if (pIdx != -1 && pIdx + 1 < finalArgs.size()) {
             finalArgs.insert(pIdx + 2, "-c");
