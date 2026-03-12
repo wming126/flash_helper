@@ -21,6 +21,10 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     translator = new QTranslator(this);
+    idleTimer = new QTimer(this);
+    idleTimer->setSingleShot(true);
+    connect(idleTimer, &QTimer::timeout, this, [this]() { ui->statusbar->showMessage(tr("Idle")); });
+
     ui->setupUi(this);
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
@@ -241,6 +245,7 @@ void MainWindow::on_btnRemoveRules_clicked() {
 }
 
 void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
+    if (idleTimer) idleTimer->stop();
     QStringList finalArgs = args;
     QString finalCmd = cmd;
     accumulatedError.clear();
@@ -424,7 +429,8 @@ void MainWindow::processFinished(int exitCode) {
             } 
         }
     }
-    currentState = State::Idle; QTimer::singleShot(5000, this, [this]() { ui->statusbar->showMessage(tr("Idle")); });
+    currentState = State::Idle; 
+    if (idleTimer) idleTimer->start(5000);
 }
 
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }

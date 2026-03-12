@@ -43,6 +43,7 @@ private:
     Ui::MainWindow *ui;
     QProcess *process;
     QTranslator *translator;
+    QTimer *idleTimer;
     QString currentFile;
     QString eepromFile;
     QStringList supportedChips;
