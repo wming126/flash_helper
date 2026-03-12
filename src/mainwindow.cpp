@@ -23,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
+    translator = new QTranslator(this);
     
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
@@ -65,6 +66,18 @@ MainWindow::MainWindow(QWidget *parent)
     ui->comboEepromProg->addItem(tr("Bus Pirate"), "buspirate_spi");
     ui->comboEepromProg->addItem(tr("Serprog"), "serprog");
     ui->comboEepromProg->addItem(tr("Linux SPI"), "linux_spi");
+
+    // Language settings
+    ui->comboLang->addItem("English", "en");
+    ui->comboLang->addItem("简体中文", "zh_CN");
+    
+    // Check current locale to set default
+    QString locale = QLocale::system().name();
+    if (locale.startsWith("zh")) {
+        ui->comboLang->setCurrentIndex(1);
+    } else {
+        ui->comboLang->setCurrentIndex(0);
+    }
 
     ui->textLog->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->textLog, &QWidget::customContextMenuRequested, this, &MainWindow::showLogContextMenu);
@@ -420,4 +433,23 @@ QString MainWindow::getProgrammerArgs(bool isEeprom) {
     if (base.contains("serprog")) { QString dev = "/dev/ttyACM0"; if (!QFile::exists(dev)) dev = "/dev/ttyUSB0"; base = "serprog:dev=" + dev + ":4000000"; if (!speed.isEmpty()) base += ",spispeed=" + speed; }
     else if (base.contains("linux_spi")) { base = "linux_spi:dev=/dev/spidev1.0"; if (!speed.isEmpty()) base += ",spispeed=" + speed; }
     return base;
+}
+
+void MainWindow::on_comboLang_currentIndexChanged(int index) {
+    if (!translator) return;
+    QString lang = ui->comboLang->itemData(index).toString();
+    qApp->removeTranslator(translator);
+    
+    if (lang == "zh_CN") {
+        if (translator->load(":/i18n/FlashHelper_zh_CN.qm")) {
+            qApp->installTranslator(translator);
+        }
+    }
+    
+    ui->retranslateUi(this);
+    ui->statusbar->showMessage(tr("Idle"));
+    
+    // Some dynamic elements need manual refresh
+    updateSystemStatus();
+    fetchSupportedChips();
 }

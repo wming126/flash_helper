@@ -6,6 +6,7 @@
 #include <QStringListModel>
 #include <QFile>
 #include <QSet>
+#include <QTranslator>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -36,10 +37,12 @@ private slots:
     void on_btnEepromErase_clicked();
     void on_btnSaveFile_clicked();
     void on_btnEepromBrowse_clicked();
+    void on_comboLang_currentIndexChanged(int index);
 
 private:
     Ui::MainWindow *ui;
     QProcess *process;
+    QTranslator *translator;
     QString currentFile;
     QString eepromFile;
     QStringList supportedChips;

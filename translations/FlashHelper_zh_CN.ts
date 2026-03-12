@@ -108,6 +108,22 @@
         <translation>十六进制查看:</translation>
     </message>
     <message>
+        <source>Interface Language:</source>
+        <translation>界面语言:</translation>
+    </message>
+    <message>
+        <source>About</source>
+        <translation>关于</translation>
+    </message>
+    <message>
+        <source>A Graphical Tool for BIOS &amp; EEPROM Flashing</source>
+        <translation>BIOS 与 EEPROM 烧录图形化工具</translation>
+    </message>
+    <message>
+        <source>Contact: wangming5719@gmail.com</source>
+        <translation>联系方式: wangming5719@gmail.com</translation>
+    </message>
+    <message>
         <source>Save Changes to File</source>
         <translation>保存修改到文件</translation>
     </message>
