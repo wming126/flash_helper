@@ -30,23 +30,50 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
     
-    // Initialize Chip Preview Widget
+    // Initialize Chip Preview Widget with a group box for better UI
+    QGroupBox *previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
+    QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
     chipPreview = new ChipPreviewWidget(this);
-    // Add to SPI tab layout (horizontalLayout_chip has comboChip)
-    ui->horizontalLayout_chip->addWidget(chipPreview);
+    previewLayout->addWidget(chipPreview);
     
+    // SPI Tab: Create a horizontal layout to hold existing content and the preview
+    QWidget *spiContent = new QWidget(this);
+    QHBoxLayout *spiMainLayout = new QHBoxLayout(spiContent);
+    QVBoxLayout *spiLeftLayout = new QVBoxLayout();
+    
+    // Move all current SPI tab items to the left layout
+    while (ui->verticalLayout_2->count() > 0) {
+        QLayoutItem *item = ui->verticalLayout_2->takeAt(0);
+        if (item->layout()) spiLeftLayout->addLayout(item->layout());
+        else if (item->widget()) spiLeftLayout->addWidget(item->widget());
+    }
+    spiMainLayout->addLayout(spiLeftLayout, 2);
+    spiMainLayout->addWidget(previewGroup, 1);
+    ui->verticalLayout_2->addWidget(spiContent);
+
+    // EEPROM Tab: Similar logic
+    QWidget *eepContent = new QWidget(this);
+    QHBoxLayout *eepMainLayout = new QHBoxLayout(eepContent);
+    QVBoxLayout *eepLeftLayout = new QVBoxLayout();
+    while (ui->verticalLayout_eeprom->count() > 0) {
+        QLayoutItem *item = ui->verticalLayout_eeprom->takeAt(0);
+        if (item->layout()) eepLeftLayout->addLayout(item->layout());
+        else if (item->widget()) eepLeftLayout->addWidget(item->widget());
+    }
+    eepMainLayout->addLayout(eepLeftLayout, 2);
+    // Note: previewGroup will be moved between tabs
+    ui->verticalLayout_eeprom->addWidget(eepContent);
+
     connect(ui->comboChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         chipPreview->setChipModel(text);
     });
     connect(ui->comboEepromChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        // Move preview to EEPROM tab if needed, but for now just update
         chipPreview->setChipModel(text);
     });
     
-    // Reparent preview based on tab
-    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
-        if (index == 0) ui->horizontalLayout_chip->addWidget(chipPreview);
-        else if (index == 1) ui->horizontalLayout_eep->addWidget(chipPreview);
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this, previewGroup, spiMainLayout, eepMainLayout](int index) {
+        if (index == 0) spiMainLayout->addWidget(previewGroup);
+        else if (index == 1) eepMainLayout->addWidget(previewGroup);
     });
 
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
