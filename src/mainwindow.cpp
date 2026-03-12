@@ -404,7 +404,6 @@ void MainWindow::processFinished(int exitCode) {
         log(tr("Smart Write Successful!"), "green");
         ui->statusbar->showMessage(tr("Smart Write Successful!"), 5000);
         QFile::remove(getWorkPath("readx.bin")); QFile::remove(getWorkPath("tempx.bin")); QFile::remove(getWorkPath("flashrom.layout"));
-        ui->hexEditor->clearModified();
     } else {
         log(tr("Operation Successful"), "green");
         ui->statusbar->showMessage(tr("Operation Successful"), 5000);
@@ -412,7 +411,6 @@ void MainWindow::processFinished(int exitCode) {
             QFile f((currentState == State::EepromRead) ? eepromFile : currentFile);
             if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
         }
-        if (currentState == State::Writing || currentState == State::EepromWrite) ui->hexEditor->clearModified();
     }
     currentState = State::Idle;
     restoreIdle();
@@ -421,29 +419,11 @@ void MainWindow::processFinished(int exitCode) {
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
 
 QString MainWindow::prepareWriteFile() {
-    if (ui->hexEditor->isModified()) {
-        QString tempPath = getWorkPath("flash_edited.bin");
-        QFile f(tempPath);
-        if (f.open(QIODevice::WriteOnly)) {
-            f.write(ui->hexEditor->data());
-            f.close();
-            log(tr("Using modified data from Hex Editor."), "cyan");
-            return tempPath;
-        }
-    }
     return (ui->tabWidget->currentIndex() == 1) ? eepromFile : currentFile;
 }
 
 void MainWindow::on_btnSaveFile_clicked() {
-    QString savePath = QFileDialog::getSaveFileName(this, tr("Save Firmware"), "modified.bin", tr("BIOS files (*.bin *.fd);;All files (*.*)"));
-    if (savePath.isEmpty()) return;
-    QFile f(savePath);
-    if (f.open(QIODevice::WriteOnly)) {
-        f.write(ui->hexEditor->data());
-        f.close();
-        log(tr("File saved successfully: %1").arg(savePath), "green");
-        ui->hexEditor->clearModified();
-    } else log(tr("Failed to save file!"), "red");
+    log(tr("Save functionality removed. Viewing only mode active."), "yellow");
 }
 
 void MainWindow::on_btnBrowse_clicked() {

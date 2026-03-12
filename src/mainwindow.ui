@@ -339,7 +339,7 @@
              </font>
             </property>
             <property name="text">
-             <string>Hex Editor (Real-time Preview &amp; Edit):</string>
+             <string>十六进制查看:</string>
             </property>
            </widget>
           </item>

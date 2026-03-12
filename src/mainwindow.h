@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QStringListModel>
 #include <QFile>
+#include <QSet>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
