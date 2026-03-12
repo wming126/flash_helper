@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QTimer>
 #include <QCompleter>
+#include <QDebug>
 #include <QInputDialog>
 
 MainWindow::MainWindow(QWidget *parent)
