@@ -28,7 +28,7 @@ private:
     int m_charHeight;
     int m_lineHeight;
     
-    // 布局常量
+    // Layout constants
     const int m_addrDigits = 8;
     const int m_bytesPerLine = 16;
     const int m_addrWidth = 80;

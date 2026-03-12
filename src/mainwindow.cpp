@@ -92,18 +92,18 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() { delete ui; }
 
 QString MainWindow::getFlashromPath() {
-    // 强制只获取应用程序同级目录下的 flashrom
-    // 在 AppImage 中，这指向挂载点内的 usr/bin/flashrom
+    // Force get flashrom from the same directory as the application
+    // In AppImage, this points to usr/bin/flashrom inside the mount point
     QString localPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashrom");
     
     if (QFile::exists(localPath)) {
         return localPath;
     }
     
-    // 如果找不到内置的，不再尝试系统路径，直接记录错误
-    // 这样可以确保工具的纯粹性，避免版本冲突
+    // If bundled flashrom is not found, stop searching and record error
+    // This ensures tool purity and avoids version conflicts
     qDebug() << "CRITICAL: Bundled flashrom not found at:" << localPath;
-    return "flashrom"; // 这里的返回仅作为最后的保险，但在 AppImage 中 localPath 应该总是存在的
+    return "flashrom"; // Fallback, but localPath should always exist in AppImage
 }
 
 void MainWindow::fetchSupportedChips() {
@@ -227,10 +227,10 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
     QString finalCmd = cmd;
     accumulatedError.clear();
     
-    // 探测当前使用的绝对路径
+    // Detect currently used absolute path
     QString flashromPath = getFlashromPath();
 
-    // 自动注入 -c 参数
+    // Auto inject -c parameter
     QString currentChip = ui->comboChip->currentText();
     if (!currentChip.isEmpty() && currentChip != tr("Auto Detect") && !finalArgs.contains("-c")) {
         int pIdx = finalArgs.indexOf("-p");
@@ -252,7 +252,7 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
             finalArgs.removeFirst();
             log(tr("[Direct Access]"), "gray");
         } else {
-            // 核心修复：如果 flashrom 在 AppImage 挂载点内，pkexec 无法访问，复制到 /tmp
+            // Core fix: if flashrom is in AppImage mount point, pkexec cannot access it, copy to /tmp
             if (flashromPath.contains("/.mount_")) {
                 QString tempFlashrom = QDir::tempPath() + "/flashrom_internal_" + qgetenv("USER");
                 if (!QFile::exists(tempFlashrom) || QFile::remove(tempFlashrom)) {
@@ -272,11 +272,27 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
             finalArgs[0] = flashromPath;
         }
     }
-    
-    // 强制打印诊断信息
+
+    // Force log diagnostic info
     log(tr("Flashrom Path: %1").arg(flashromPath), "gray");
     log(tr("Final Command: %1 %2").arg(finalCmd, finalArgs.join(" ")), "gray");
+
     
+    QString statusText;
+    switch (currentState) {
+        case State::Detecting: statusText = tr("Detecting chip..."); break;
+        case State::Reading: statusText = tr("Reading flash..."); break;
+        case State::Writing: statusText = tr("Writing flash..."); break;
+        case State::Erasing: statusText = tr("Erasing flash..."); break;
+        case State::SmartRead: statusText = tr("Smart Merge: Reading..."); break;
+        case State::SmartWrite: statusText = tr("Smart Merge: Writing..."); break;
+        case State::EepromRead: statusText = tr("Reading EEPROM..."); break;
+        case State::EepromWrite: statusText = tr("Writing EEPROM..."); break;
+        case State::EepromErase: statusText = tr("Erasing EEPROM..."); break;
+        default: statusText = tr("Processing..."); break;
+    }
+    ui->statusbar->showMessage(statusText);
+
     process->start(finalCmd, finalArgs);
 }
 
@@ -354,18 +370,39 @@ void MainWindow::processFinished(int exitCode) {
                 return;
             }
         }
-        if (currentState == State::SmartRead) { log(tr("Smart Merge: Step 1/3"), "cyan"); QString targetPath = getWorkPath("readx.bin"); QFile::remove(targetPath); runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", targetPath}); currentState = State::Reading; return; }
+        if (currentState == State::SmartRead) { 
+            log(tr("Smart Merge: Step 1/3"), "cyan"); 
+            ui->statusbar->showMessage(tr("Smart Merge: Step 1/3 (Reading)"));
+            QString targetPath = getWorkPath("readx.bin"); 
+            QFile::remove(targetPath); 
+            runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", targetPath}); 
+            currentState = State::Reading; 
+            return; 
+        }
         log(tr("Failed"), "red");
+        ui->statusbar->showMessage(tr("Operation Failed"), 5000);
     } else {
         if (currentState == State::Reading && QFile::exists(getWorkPath("readx.bin"))) {
             log(tr("Step 2/3: Merging"), "cyan");
+            ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 (Merging)"));
             QFile flashFile(getWorkPath("readx.bin")); QFile newFile(currentFile); QFile outFile(getWorkPath("tempx.bin"));
             if (flashFile.open(QIODevice::ReadOnly) && newFile.open(QIODevice::ReadOnly) && outFile.open(QIODevice::WriteOnly)) {
                 outFile.write(newFile.readAll()); flashFile.seek(lastInfo.fileSize); outFile.write(flashFile.readAll()); flashFile.close(); newFile.close(); outFile.close();
                 QFile layout(getWorkPath("flashrom.layout")); if (layout.open(QIODevice::WriteOnly)) { layout.write(QString("00000000:%1 flashzone").arg(lastInfo.fileSize - 1, 8, 16, QChar('0')).toUtf8()); layout.close(); currentState = State::SmartWrite; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-l", getWorkPath("flashrom.layout"), "-i", "flashzone", "-w", getWorkPath("tempx.bin")}); return; }
             }
-        } else if (currentState == State::SmartWrite) { log(tr("Successful!"), "green"); QFile::remove(getWorkPath("readx.bin")); QFile::remove(getWorkPath("tempx.bin")); QFile::remove(getWorkPath("flashrom.layout")); }
-        else { log(tr("Successful"), "green"); if (currentState == State::Reading || currentState == State::EepromRead) { QFile f((currentState == State::EepromRead) ? eepromFile : currentFile); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } } }
+        } else if (currentState == State::SmartWrite) { 
+            log(tr("Successful!"), "green"); 
+            ui->statusbar->showMessage(tr("Smart Merge Successful"), 5000);
+            QFile::remove(getWorkPath("readx.bin")); QFile::remove(getWorkPath("tempx.bin")); QFile::remove(getWorkPath("flashrom.layout")); 
+        }
+        else { 
+            log(tr("Successful"), "green"); 
+            ui->statusbar->showMessage(tr("Operation Successful"), 5000);
+            if (currentState == State::Reading || currentState == State::EepromRead) { 
+                QFile f((currentState == State::EepromRead) ? eepromFile : currentFile); 
+                if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } 
+            } 
+        }
     }
     currentState = State::Idle; QTimer::singleShot(5000, this, [this]() { ui->statusbar->showMessage(tr("Idle")); });
 }

@@ -16,7 +16,7 @@ HexEditor::HexEditor(QWidget *parent) : QAbstractScrollArea(parent) {
     m_lineHeight = m_charHeight + 4;
     
     setFocusPolicy(Qt::StrongFocus);
-    viewport()->installEventFilter(this); // 关键：拦截 viewport 事件
+    viewport()->installEventFilter(this); // Intercept viewport events
     viewport()->setBackgroundRole(QPalette::Base);
     viewport()->setCursor(Qt::IBeamCursor);
 }
@@ -70,11 +70,11 @@ void HexEditor::paintEvent(QPaintEvent *) {
         int y = line * m_lineHeight + m_charHeight;
         if (line * m_bytesPerLine >= m_data.size()) break;
         
-        // 绘制地址区
+        // Draw Address Area
         p.setPen(Qt::darkGray);
         p.drawText(5, y, QString("%1").arg(line * m_bytesPerLine, 8, 16, QChar('0')).toUpper());
         
-        // 绘制 Hex 区
+        // Draw Hex Area
         for (int i = 0; i < m_bytesPerLine; ++i) {
             int idx = line * m_bytesPerLine + i;
             if (idx >= m_data.size()) break;
@@ -89,7 +89,7 @@ void HexEditor::paintEvent(QPaintEvent *) {
             p.drawText(x, y, QString("%1").arg((unsigned char)m_data[idx], 2, 16, QChar('0')).toUpper());
         }
         
-        // 绘制 ASCII 区
+        // Draw ASCII Area
         int asciiX = m_addrWidth + m_bytesPerLine * (m_charWidth * 3) + m_gap;
         for (int i = 0; i < m_bytesPerLine; ++i) {
             int idx = line * m_bytesPerLine + i;
@@ -104,7 +104,7 @@ void HexEditor::paintEvent(QPaintEvent *) {
 void HexEditor::keyPressEvent(QKeyEvent *event) {
     if (m_data.isEmpty()) return;
     
-    // 导航键处理
+    // Navigation keys
     if (event->key() == Qt::Key_Left) { 
         if (m_cursorPos > 0) m_cursorPos--;
     }
