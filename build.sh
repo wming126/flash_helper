@@ -42,9 +42,27 @@ echo "--- Step 3: Building flashrom and Packaging AppImage ---"
 chmod +x make_appimage.sh
 ./make_appimage.sh
 
-# 5. 完成提示
+# 5. 构建 DEB 和 RPM 安装包 (使用 CMake/CPack)
+echo "--- Step 4: Building DEB and RPM packages ---"
+mkdir -p build_pkg && cd build_pkg
+cmake ..
+make -j$(nproc)
+echo "Generating DEB..."
+cpack -G DEB
+echo "Generating RPM..."
+cpack -G RPM
+cd ..
+
+# 归档安装包到根目录
+mv build_pkg/*.deb . 2>/dev/null || true
+mv build_pkg/*.rpm . 2>/dev/null || true
+rm -rf build_pkg
+
+# 6. 完成提示
 echo "================================================="
 echo "Build Success!"
 echo "Architecture: $ARCH"
 echo "Target Image: $(ls -lh FlashHelper-${ARCH}.AppImage | awk '{print $9 " (" $5 ")"}')"
+echo "Target DEB:   $(ls -lh *.deb 2>/dev/null | awk '{print $9 " (" $5 ")"}')"
+echo "Target RPM:   $(ls -lh *.rpm 2>/dev/null | awk '{print $9 " (" $5 ")"}')"
 echo "================================================="

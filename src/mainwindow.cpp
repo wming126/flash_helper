@@ -87,7 +87,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->textLog->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->textLog, &QWidget::customContextMenuRequested, this, &MainWindow::showLogContextMenu);
 
-    ui->splitterMain->setSizes({150, 450, 150});
+    ui->splitterMain->setSizes({150, 450, 100});
     QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
 
     updateSystemStatus();

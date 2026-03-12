@@ -72,23 +72,32 @@ target_link_libraries(FlashHelper PRIVATE ${QT_LIBRARIES})
 # 1. Install Binary
 install(TARGETS FlashHelper DESTINATION bin)
 
+# Install bundled flashrom binary
+# Note: This assumes flashrom has been built in flashrom/build/
+if(EXISTS "${CMAKE_SOURCE_DIR}/flashrom/build/flashrom")
+    install(FILES "${CMAKE_SOURCE_DIR}/flashrom/build/flashrom" 
+            DESTINATION bin
+            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    message(STATUS "Including bundled flashrom in the package")
+endif()
+
 # 2. Packaging config
 set(CPACK_PACKAGE_NAME "flashhelper")
 set(CPACK_PACKAGE_VENDOR "Robin")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "BIOS Flash Tool GUI")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "BIOS Flash Tool GUI (Bundled flashrom)")
 set(CPACK_PACKAGE_VERSION "${GIT_VERSION_CLEAN}")
 set(CPACK_STRIP_FILES TRUE)
 
 # DEB specific
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Robin <robin@example.com>")
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "flashrom, coreutils, libxkbcommon0")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "coreutils, libxkbcommon0, libpci3, libusb-1.0-0, libftdi1-2")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 
 # RPM specific
 set(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/System")
-set(CPACK_RPM_PACKAGE_REQUIRES "flashrom, coreutils")
+set(CPACK_RPM_PACKAGE_REQUIRES "coreutils, pciutils-libs, libusb1, libftdi")
 
 # Include CPack after variables are set
 include(CPack)
