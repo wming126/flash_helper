@@ -434,8 +434,37 @@ void MainWindow::processFinished(int exitCode) {
 }
 
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
-QString MainWindow::prepareWriteFile() { return (ui->tabWidget->currentIndex() == 1) ? eepromFile : currentFile; }
-void MainWindow::on_btnSaveFile_clicked() { log(tr("Viewer mode only."), "yellow"); }
+QString MainWindow::prepareWriteFile() {
+    QByteArray data = ui->hexEditor->data();
+    if (data.isEmpty()) {
+        QMessageBox::warning(this, tr("Warning"), tr("No data to write."));
+        return QString();
+    }
+    
+    QString tempPath = getWorkPath("flash_buffer.bin");
+    QFile f(tempPath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(data);
+        f.close();
+        return tempPath;
+    } else {
+        QMessageBox::critical(this, tr("Error"), tr("Failed to prepare data for writing."));
+        return QString();
+    }
+}
+void MainWindow::on_btnSaveFile_clicked() {
+    QString savePath = QFileDialog::getSaveFileName(this, tr("Save Binary File"), currentFile, tr("Binary (*.bin *.fd);;All (*.*)"));
+    if (savePath.isEmpty()) return;
+    
+    QFile f(savePath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(ui->hexEditor->data());
+        f.close();
+        log(tr("File saved: %1").arg(savePath), "green");
+    } else {
+        log(tr("Failed to save file: %1").arg(f.errorString()), "red");
+    }
+}
 void MainWindow::on_btnBrowse_clicked() { QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS"), "", tr("Binary (*.bin *.fd);;All (*.*)")); if (!fileName.isEmpty()) { ui->lineFile->setText(fileName); currentFile = fileName; QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } } }
 void MainWindow::log(const QString &msg, const QString &color) { ui->textLog->append(QString("<font color=\"%1\">%2</font>").arg(color, msg.toHtmlEscaped())); }
 QString MainWindow::getProgrammerArgs(bool isEeprom) {
