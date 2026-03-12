@@ -38,15 +38,15 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Find Qt
-find_package(Qt6 COMPONENTS Widgets Core Gui DBus Svg QUIET)
+find_package(Qt6 COMPONENTS Widgets Core Gui QUIET)
 if(Qt6_FOUND)
     message(STATUS "Found Qt6")
-    set(QT_LIBRARIES Qt6::Widgets Qt6::Core Qt6::Gui Qt6::DBus Qt6::Svg)
+    set(QT_LIBRARIES Qt6::Widgets Qt6::Core Qt6::Gui)
     set(QT_VERSION_MAJOR 6)
 else()
-    find_package(Qt5 COMPONENTS Widgets Core Gui DBus Svg REQUIRED)
+    find_package(Qt5 COMPONENTS Widgets Core Gui REQUIRED)
     message(STATUS "Found Qt5")
-    set(QT_LIBRARIES Qt5::Widgets Qt5::Core Qt5::Gui Qt5::DBus Qt5::Svg)
+    set(QT_LIBRARIES Qt5::Widgets Qt5::Core Qt5::Gui)
     set(QT_VERSION_MAJOR 5)
 endif()
 
@@ -66,38 +66,41 @@ target_include_directories(FlashHelper PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(FlashHelper PRIVATE ${QT_LIBRARIES})
 
 # --- Packaging Logic ---
-set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# CPack doesn't work well with absolute paths in install commands.
+# Let's use relative paths.
 
 # 1. Install Binary
 install(TARGETS FlashHelper DESTINATION bin)
 
-# 2. Bundle Runtime Dependencies (Libraries) - 仅在非 CPack 模式下由脚本处理或由 CPack 自动处理
-# 这里简化，不使用硬编码路径
-
-# 3. Packaging config
+# 2. Packaging config
 set(CPACK_PACKAGE_NAME "flashhelper")
 set(CPACK_PACKAGE_VENDOR "Robin")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "BIOS Flash Tool GUI")
-set(CPACK_PACKAGING_INSTALL_PREFIX "/opt/flashhelper")
 set(CPACK_PACKAGE_VERSION "${GIT_VERSION_CLEAN}")
+set(CPACK_STRIP_FILES TRUE)
 
 # DEB specific
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Robin <robin@example.com>")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "flashrom, coreutils, libxkbcommon0")
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 
+# RPM specific
+set(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
+set(CPACK_RPM_PACKAGE_GROUP "Applications/System")
+set(CPACK_RPM_PACKAGE_REQUIRES "flashrom, coreutils")
+
+# Include CPack after variables are set
 include(CPack)
 
 # 4. Install desktop entry
-install(CODE "
-    file(READ \"${CMAKE_SOURCE_DIR}/deploy/flashhelper.desktop\" DESKTOP_CONTENT)
-    string(REPLACE \"Exec=FlashHelper\" \"Exec=/opt/flashhelper/bin/FlashHelper\" DESKTOP_CONTENT \"\${DESKTOP_CONTENT}\")
-    string(REPLACE \"Icon=flashhelper\" \"Icon=/usr/share/icons/hicolor/scalable/apps/flashhelper.svg\" DESKTOP_CONTENT \"\${DESKTOP_CONTENT}\")
-    file(WRITE \"\$ENV{DESTDIR}/usr/share/applications/flashhelper.desktop\" \"\${DESKTOP_CONTENT}\")
-")
+# Replace hardcoded paths in desktop file during installation if needed, 
+# but better to have a clean desktop file or handle it differently.
+# For now, install it to the standard location relative to CMAKE_INSTALL_PREFIX.
+install(FILES deploy/flashhelper.desktop DESTINATION share/applications)
 
 # 5. Install icon
-install(FILES res/flashhelper.svg DESTINATION /usr/share/icons/hicolor/scalable/apps)
+install(FILES res/flashhelper.svg DESTINATION share/icons/hicolor/scalable/apps)
 
 # 6. Install Polkit policy
-install(FILES deploy/com.robin.flashhelper.policy DESTINATION /usr/share/polkit-1/actions)
+install(FILES deploy/com.robin.flashhelper.policy DESTINATION share/polkit-1/actions)
