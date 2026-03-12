@@ -50,6 +50,7 @@ else()
     set(QT_VERSION_MAJOR 5)
 endif()
 
+
 set(PROJECT_SOURCES
     src/main.cpp
     src/mainwindow.cpp

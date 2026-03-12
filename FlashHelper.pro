@@ -8,10 +8,15 @@ CONFIG += c++17
 
 SOURCES += \
     src/main.cpp \
-    src/mainwindow.cpp
+    src/mainwindow.cpp \
+    src/hexeditor.cpp
 
 HEADERS += \
-    src/mainwindow.h
+    src/mainwindow.h \
+    src/hexeditor.h
+
+RESOURCES += \
+    res/resources.qrc
 
 FORMS += \
     src/mainwindow.ui

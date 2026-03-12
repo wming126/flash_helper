@@ -47,6 +47,7 @@ private:
     void updateSystemStatus();
     void fetchSupportedChips();
     QString getProgrammerArgs(bool isEeprom = false);
+    QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");
     void runCommand(const QString &cmd, const QStringList &args);
     void loadDataToEditor(const QByteArray &data);
