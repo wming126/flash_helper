@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QSet>
 #include <QTranslator>
+#include "localspidriver.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -38,6 +39,12 @@ private slots:
     void on_btnSaveFile_clicked();
     void on_btnEepromBrowse_clicked();
     void on_comboLang_currentIndexChanged(int index);
+    
+    // Local Flash Slots
+    void on_btnLocalDetect_clicked();
+    void on_btnLocalRead_clicked();
+    void on_btnLocalWrite_clicked();
+    void on_btnLocalBrowse_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -46,9 +53,11 @@ private:
     QTimer *idleTimer;
     QString currentFile;
     QString eepromFile;
+    QString localFile;
     QStringList supportedChips;
     class ChipPreviewWidget *chipPreview;
     class QGroupBox *previewGroup;
+    LocalSpiDriver *localSpi;
 
     void updateSystemStatus();
     void fetchSupportedChips();
@@ -60,7 +69,7 @@ private:
     QString prepareWriteFile();
     
     // Internal state management
-    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase };
+    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase, LocalDetect, LocalRead, LocalWrite };
     State currentState = State::Idle;
     QStringList detectedChips;
     QString accumulatedError;

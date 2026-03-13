@@ -10,12 +10,14 @@ SOURCES += \
     src/main.cpp \
     src/mainwindow.cpp \
     src/hexeditor.cpp \
-    src/chippreviewwidget.cpp
+    src/chippreviewwidget.cpp \
+    src/localspidriver.cpp
 
 HEADERS += \
     src/mainwindow.h \
     src/hexeditor.h \
-    src/chippreviewwidget.h
+    src/chippreviewwidget.h \
+    src/localspidriver.h
 
 RESOURCES += \
     res/resources.qrc

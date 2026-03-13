@@ -75,6 +75,7 @@ void HexEditor::scrollToCursor() {
 }
 
 void HexEditor::paintEvent(QPaintEvent *event) {
+    Q_UNUSED(event);
     QPainter p(viewport());
     p.setRenderHint(QPainter::Antialiasing, false);
     

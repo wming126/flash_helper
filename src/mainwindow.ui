@@ -239,6 +239,132 @@
           </spacer>
          </item>
         </layout>
+       </widget>
+       <widget class="QWidget" name="tabLocal">
+        <attribute name="title">
+         <string>Local Flash (Loongson)</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout_local">
+         <item>
+          <widget class="QGroupBox" name="groupBox_local">
+           <property name="title">
+            <string>Local BIOS Access (Direct MMIO)</string>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_local_inner">
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_local_file">
+              <item>
+               <widget class="QLineEdit" name="editLocalFile">
+                <property name="readOnly">
+                 <bool>true</bool>
+                </property>
+                <property name="placeholderText">
+                 <string>Select BIOS file for local flashing...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnLocalBrowse">
+                <property name="text">
+                 <string>Browse</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="labelLocalChip">
+              <property name="font">
+               <font>
+                <pointsize>11</pointsize>
+                <weight>75</weight>
+                <bold>true</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>Chip Info: Not Detected</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_local_btns">
+              <item>
+               <widget class="QPushButton" name="btnLocalDetect">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>45</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Detect Local Chip</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnLocalRead">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>45</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Read &amp; Backup BIOS</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnLocalWrite">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>45</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">background-color: #c0392b; color: white; font-weight: bold;</string>
+                </property>
+                <property name="text">
+                 <string>Write Local BIOS</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_local_warning">
+           <property name="text">
+            <string>Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+           <property name="margin">
+            <number>5</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="verticalSpacer_local">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
        </widget>       <widget class="QWidget" name="tabSetup">
         <attribute name="title">
          <string>System Setup</string>
@@ -500,6 +626,16 @@
         <string notr="true">background-color: #1e1e1e; color: #ffffff; font-family: 'Monospace';</string>
        </property>
       </widget>
+     </widget>
+    </item>
+    <item>
+     <widget class="QProgressBar" name="progressBar">
+      <property name="value">
+       <number>0</number>
+      </property>
+      <property name="textVisible">
+       <bool>true</bool>
+      </property>
      </widget>
     </item>
    </layout>

@@ -23,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+    localSpi = new LocalSpiDriver();
     translator = new QTranslator(this);
     idleTimer = new QTimer(this);
     idleTimer->setSingleShot(true);
@@ -168,7 +169,11 @@ MainWindow::MainWindow(QWidget *parent)
     });
 }
 
-MainWindow::~MainWindow() { delete ui; }
+MainWindow::~MainWindow()
+{
+    delete localSpi;
+    delete ui;
+}
 
 QString MainWindow::getFlashromPath() {
     QString localPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashrom");
@@ -544,3 +549,102 @@ void MainWindow::on_comboLang_currentIndexChanged(int index) {
     updateSystemStatus();
     fetchSupportedChips();
 }
+
+void MainWindow::on_btnLocalBrowse_clicked() {
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS File"), "", tr("Binary Files (*.bin *.rom);;All Files (*)"));
+    if (!fileName.isEmpty()) {
+        localFile = fileName;
+        ui->editLocalFile->setText(localFile);
+        log(tr("Selected local file: %1").arg(localFile));
+    }
+}
+
+void MainWindow::on_btnLocalDetect_clicked() {
+    if (!localSpi->init()) {
+        log(tr("Failed to init local SPI driver. Please run with root/pkexec!"), "red");
+        return;
+    }
+    uint8_t m, d, c;
+    if (localSpi->detectChip(m, d, c)) {
+        QString info = QString("ID: %1 %2 %3").arg(QString::number(m, 16).toUpper(), 
+                                                  QString::number(d, 16).toUpper(), 
+                                                  QString::number(c, 16).toUpper());
+        ui->labelLocalChip->setText(info);
+        log(tr("Detected Local Chip: %1").arg(info), "green");
+        
+        if (c >= 0x13 && c <= 0x21) {
+             uint32_t size = 1 << c;
+             localSpi->setFlashSize(size);
+             log(tr("Flash Size: %1 MB").arg(size / 1024 / 1024));
+        }
+    } else {
+        log(tr("No local chip detected or SPI busy."), "red");
+    }
+    localSpi->release();
+}
+
+void MainWindow::on_btnLocalRead_clicked() {
+    if (!localSpi->init()) {
+        log(tr("Failed to init local SPI driver."), "red");
+        return;
+    }
+    
+    uint32_t size = localSpi->getFlashSize();
+    QByteArray data(size, 0);
+    log(tr("Starting local read (%1 MB)...").arg(size / 1024 / 1024));
+    
+    ui->progressBar->setValue(0);
+    uint32_t step = 64 * 1024;
+    for (uint32_t offset = 0; offset < size; offset += step) {
+        uint32_t len = qMin(step, size - offset);
+        localSpi->readFlash(offset, len, (uint8_t*)data.data() + offset);
+        ui->progressBar->setValue((offset + len) * 100 / size);
+        QCoreApplication::processEvents();
+    }
+    
+    log(tr("Local read finished."), "green");
+    loadDataToEditor(data);
+    localSpi->release();
+}
+
+void MainWindow::on_btnLocalWrite_clicked() {
+    if (localFile.isEmpty()) {
+        QMessageBox::warning(this, tr("Error"), tr("Please select a file first."));
+        return;
+    }
+
+    QFile file(localFile);
+    if (!file.open(QIODevice::ReadOnly)) {
+        log(tr("Cannot open file: %1").arg(localFile), "red");
+        return;
+    }
+    QByteArray data = file.readAll();
+    file.close();
+
+    if (!localSpi->init()) {
+        log(tr("Failed to init local SPI driver."), "red");
+        return;
+    }
+
+    uint32_t flashSize = localSpi->getFlashSize();
+    if ((uint32_t)data.size() > flashSize) {
+        log(tr("Warning: File size (%1) is larger than flash size (%2)!").arg(data.size()).arg(flashSize), "yellow");
+        data = data.left(flashSize);
+    }
+
+    log(tr("Starting local erase & write..."), "blue");
+    ui->progressBar->setValue(0);
+    
+    log(tr("Erasing..."));
+    localSpi->eraseFlash(0, data.size());
+    ui->progressBar->setValue(50);
+    QCoreApplication::processEvents();
+
+    log(tr("Writing..."));
+    localSpi->writeFlash(0, data.size(), (const uint8_t*)data.constData());
+    ui->progressBar->setValue(100);
+    
+    log(tr("Local write successfully completed!"), "green");
+    localSpi->release();
+}
+

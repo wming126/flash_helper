@@ -60,6 +60,8 @@ set(PROJECT_SOURCES
     src/hexeditor.h
     src/chippreviewwidget.cpp
     src/chippreviewwidget.h
+    src/localspidriver.cpp
+    src/localspidriver.h
     res/resources.qrc
 )
 
