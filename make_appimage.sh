@@ -85,6 +85,29 @@ else
     if [ -f "$APPDIR/usr/plugins/platforms/libqxcb.so" ]; then
         ldd $APPDIR/usr/plugins/platforms/libqxcb.so | grep '=> /' | grep -vE 'libc.so|libm.so|libpthread.so|libdl.so|librt.so|libgcc_s.so|libstdc++.so' | awk '{print $3}' | xargs -I {} cp -vn {} $APPDIR/usr/lib/
     fi
+
+    # Deploy SVG plugins manually
+    mkdir -p $APPDIR/usr/plugins/imageformats
+    mkdir -p $APPDIR/usr/plugins/iconengines
+    QT_PLUGIN_PATH=""
+    if [ -d "/usr/lib/$(uname -m)-linux-gnu/qt5/plugins" ]; then
+        QT_PLUGIN_PATH="/usr/lib/$(uname -m)-linux-gnu/qt5/plugins"
+    elif [ -d "/usr/lib/qt/plugins" ]; then
+        QT_PLUGIN_PATH="/usr/lib/qt/plugins"
+    elif [ -d "/usr/lib/qt5/plugins" ]; then
+        QT_PLUGIN_PATH="/usr/lib/qt5/plugins"
+    fi
+
+    if [ -n "$QT_PLUGIN_PATH" ]; then
+        cp -v $QT_PLUGIN_PATH/imageformats/libqsvg.so $APPDIR/usr/plugins/imageformats/ 2>/dev/null || true
+        cp -v $QT_PLUGIN_PATH/iconengines/libqsvgicon.so $APPDIR/usr/plugins/iconengines/ 2>/dev/null || true
+        
+        # Copy dependencies for SVG plugins
+        if [ -f "$APPDIR/usr/plugins/imageformats/libqsvg.so" ]; then
+            ldd $APPDIR/usr/plugins/imageformats/libqsvg.so | grep '=> /' | grep -vE 'libc.so|libm.so|libpthread.so|libdl.so|librt.so|libgcc_s.so|libstdc++.so' | awk '{print $3}' | xargs -I {} cp -vn {} $APPDIR/usr/lib/
+        fi
+    fi
+
     echo -e "[Paths]\nPlugins = ../plugins\nLibraries = ../lib" > $APPDIR/usr/bin/qt.conf
 fi
 

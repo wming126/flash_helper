@@ -1,4 +1,6 @@
 QT       += core gui widgets
+qtHaveModule(svg): QT += svg
+
 
 TARGET = FlashHelper
 TEMPLATE = app
