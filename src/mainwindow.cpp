@@ -33,7 +33,6 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
     ui->progressBar->hide();
-    ui->statusbar->showMessage(tr("Idle"));
     
     previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
     QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
@@ -501,6 +500,7 @@ void MainWindow::on_comboLang_currentIndexChanged(int index) {
     if (loaded) qApp->installTranslator(translator);
     ui->retranslateUi(this);
     if (previewGroup) previewGroup->setTitle(tr("Chip Pinout Preview"));
+    ui->statusbar->showMessage(tr("Idle"));
     updateSystemStatus();
     fetchSupportedChips();
 }
