@@ -82,10 +82,10 @@ MainWindow::MainWindow(QWidget *parent)
         if (index == 0) spiMainLayout->addWidget(this->previewGroup);
         else if (index == 1) eepMainLayout->addWidget(this->previewGroup);
         
-        // Hide editor and log on "About" tab (index 4)
-        bool isAbout = (index == 4);
-        ui->editorContainer->setVisible(!isAbout);
-        ui->textLog->setVisible(!isAbout);
+        // Hide editor and log on "System Setup" (index 3) and "About" (index 4) tabs
+        bool isSettingsOrAbout = (index == 3 || index == 4);
+        ui->editorContainer->setVisible(!isSettingsOrAbout);
+        ui->textLog->setVisible(!isSettingsOrAbout);
 
         // Progress bar management
         if (index != 2) ui->progressBar->hide();
