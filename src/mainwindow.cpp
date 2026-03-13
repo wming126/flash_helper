@@ -34,6 +34,8 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowIcon(QIcon(":/flashhelper.svg"));
     process = new QProcess(this);
     ui->progressBar->hide();
+    ui->progressBar->setTextVisible(true);
+    ui->progressBar->setFormat("%p%");
     
     previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
     QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
@@ -404,13 +406,34 @@ void MainWindow::on_btnEepromErase_clicked() {
 }
 
 void MainWindow::readProcessOutput() {
-    QString output = process->readAllStandardOutput(); 
+    QString output = process->readAllStandardOutput();
     QString error = process->readAllStandardError();
-    if (!output.isEmpty()) { log(output, "white"); accumulatedOutput += output; }
-    if (!error.isEmpty()) { log(error, "yellow"); accumulatedError += error; }
+    if (!output.isEmpty()) { 
+        log(output, "white"); 
+        accumulatedOutput += output; 
+
+        // Parse progress like "Read: 50%" or "Erase: 20%" or "Write: 80%"
+        QRegularExpression progRe("(\\d+)%");
+        QRegularExpressionMatchIterator i = progRe.globalMatch(output);
+        while (i.hasNext()) {
+            QRegularExpressionMatch match = i.next();
+            ui->progressBar->setValue(match.captured(1).toInt());
+        }
+    }
+    if (!error.isEmpty()) { 
+        log(error, "yellow"); 
+        accumulatedError += error; 
+
+        // Some flashrom versions output progress to stderr
+        QRegularExpression progRe("(\\d+)%");
+        QRegularExpressionMatchIterator i = progRe.globalMatch(error);
+        while (i.hasNext()) {
+            QRegularExpressionMatch match = i.next();
+            ui->progressBar->setValue(match.captured(1).toInt());
+        }
+    }
     if (currentState == State::Writing && (error.contains("expected size") || error.contains("doesn't match"))) handleSmartWrite(error);
 }
-
 void MainWindow::handleSmartWrite(const QString &error) {
     QRegularExpression re("(?:file|Image) size \\((\\d+) ?B?\\).*?(?:flash chip's|expected) size \\((\\d+) ?B?\\)");
     QRegularExpressionMatch match = re.match(error);
@@ -550,7 +573,8 @@ void MainWindow::on_btnLocalDetect_clicked() { currentState = State::LocalDetect
 void MainWindow::on_btnLocalRead_clicked() { 
     currentState = State::LocalRead; 
     lockUi(true);
-    ui->progressBar->setRange(0, 0); // Indeterminate
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setValue(0);
     ui->progressBar->show();
     ui->statusbar->showMessage(tr("Starting local read (%1 MB)...").arg(localSpi->getFlashSize() / 1024 / 1024));
     if (!runLocalHelper({"read", getWorkPath("flash_read.bin"), QString::number(localSpi->getFlashSize())})) {
@@ -563,7 +587,8 @@ void MainWindow::on_btnLocalWrite_clicked() {
     if (localFile.isEmpty()) { QMessageBox::warning(this, tr("Error"), tr("Please select a file first.")); return; }
     currentState = State::LocalWrite; 
     lockUi(true);
-    ui->progressBar->setRange(0, 0); // Indeterminate
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setValue(0);
     ui->progressBar->show();
     ui->statusbar->showMessage(tr("Starting local erase & write..."));
     if (!runLocalHelper({"write", localFile})) {

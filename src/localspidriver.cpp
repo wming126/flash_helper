@@ -237,13 +237,21 @@ bool LocalSpiDriver::detectChip(uint8_t &manuId, uint8_t &devId, uint8_t &capaId
 
 bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) {
     spiFlashInit();
+    printf("Read: 0%%\n");
+    fflush(stdout);
     regWrite8(REG_SOFTCS, 0x01);
     spiTransferByte(CMD_FAST_READ);
     spiTransferByte((offset >> 16) & 0xff);
     spiTransferByte((offset >> 8) & 0xff);
     spiTransferByte(offset & 0xff);
     spiTransferByte(0x00); // Dummy
-    for (uint32_t i = 0; i < size; i++) buffer[i] = spiTransferByte(0x00);
+    for (uint32_t i = 0; i < size; i++) {
+        buffer[i] = spiTransferByte(0x00);
+        if ((i % 65536) == 0 || i == size - 1) {
+            printf("Read: %d%%\n", (int)((uint64_t)(i + 1) * 100 / size));
+            fflush(stdout);
+        }
+    }
     regWrite8(REG_SOFTCS, 0x11);
     spiFlashReset();
     return true;
@@ -253,6 +261,8 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
     spiFlashInit();
     spiDisableWriteProtection();
     uint32_t pos = offset;
+    printf("Erase: 0%%\n");
+    fflush(stdout);
     while (pos < offset + size) {
         spiWriteEnable();
         spiFlashWait();
@@ -264,6 +274,11 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
         regWrite8(REG_SOFTCS, 0x11);
         spiFlashWait();
         pos += 4096;
+        
+        if ((pos % (64 * 1024)) == 0 || pos >= offset + size) {
+            printf("Erase: %d%%\n", (int)((uint64_t)(pos - offset) * 100 / size));
+            fflush(stdout);
+        }
     }
     spiEnableWriteProtection();
     spiFlashReset();
@@ -273,6 +288,8 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
 bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *buffer) {
     spiFlashInit();
     spiDisableWriteProtection();
+    printf("Write: 0%%\n");
+    fflush(stdout);
     for (uint32_t i = 0; i < size; i++) {
         uint32_t pos = offset + i;
         spiWriteEnable();
@@ -284,6 +301,11 @@ bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *b
         spiTransferByte(buffer[i]);
         regWrite8(REG_SOFTCS, 0x11);
         spiFlashWait();
+
+        if ((i % 16384) == 0 || i == size - 1) {
+            printf("Write: %d%%\n", (int)((uint64_t)(i + 1) * 100 / size));
+            fflush(stdout);
+        }
     }
     spiEnableWriteProtection();
     spiFlashReset();
