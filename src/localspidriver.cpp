@@ -237,6 +237,7 @@ bool LocalSpiDriver::detectChip(uint8_t &manuId, uint8_t &devId, uint8_t &capaId
 
 bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) {
     spiFlashInit();
+    printf("[READ] Starting read at 0x%X, size %u bytes...\n", offset, size);
     printf("Read: 0%%\n");
     fflush(stdout);
     regWrite8(REG_SOFTCS, 0x01);
@@ -254,6 +255,8 @@ bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) 
     }
     regWrite8(REG_SOFTCS, 0x11);
     spiFlashReset();
+    printf("[READ] Completed successfully.\n");
+    fflush(stdout);
     return true;
 }
 
@@ -261,6 +264,7 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
     spiFlashInit();
     spiDisableWriteProtection();
     uint32_t pos = offset;
+    printf("[ERASE] Starting erase at 0x%X, size %u bytes...\n", offset, size);
     printf("Erase: 0%%\n");
     fflush(stdout);
     while (pos < offset + size) {
@@ -282,12 +286,15 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
     }
     spiEnableWriteProtection();
     spiFlashReset();
+    printf("[ERASE] Completed successfully.\n");
+    fflush(stdout);
     return true;
 }
 
 bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *buffer) {
     spiFlashInit();
     spiDisableWriteProtection();
+    printf("[WRITE] Starting write at 0x%X, size %u bytes...\n", offset, size);
     printf("Write: 0%%\n");
     fflush(stdout);
     for (uint32_t i = 0; i < size; i++) {
@@ -309,5 +316,7 @@ bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *b
     }
     spiEnableWriteProtection();
     spiFlashReset();
+    printf("[WRITE] Completed successfully.\n");
+    fflush(stdout);
     return true;
 }

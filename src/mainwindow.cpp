@@ -333,6 +333,8 @@ bool MainWindow::runLocalHelper(const QStringList &args) {
     if (!QFile::exists(helperPath)) helperPath = QDir::current().absoluteFilePath("flashhelper-helper");
     if (!QFile::exists(helperPath)) helperPath = "./flashhelper-helper";
     
+    log(tr("[Local Flash] Running: %1 %2\n").arg(helperPath, args.join(" ")), "cyan");
+    
     if (helperPath.contains("/.mount_")) {
         QString tempPath = QDir::tempPath() + "/flashhelper-helper_internal_" + qgetenv("USER");
         if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
@@ -543,7 +545,13 @@ void MainWindow::on_btnBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS"), "", tr("Binary (*.bin *.fd);;All (*.*)")); 
     if (!fileName.isEmpty()) { ui->lineFile->setText(fileName); currentFile = fileName; QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } } 
 }
-void MainWindow::log(const QString &msg, const QString &color) { ui->textLog->append(QString("<font color=\"%1\">%2</font>").arg(color, msg.toHtmlEscaped())); ui->textLog->ensureCursorVisible(); }
+void MainWindow::log(const QString &msg, const QString &color) {
+    Q_UNUSED(color);
+    if (msg.isEmpty()) return;
+    ui->textLog->moveCursor(QTextCursor::End);
+    ui->textLog->insertPlainText(msg);
+    ui->textLog->ensureCursorVisible();
+}
 QString MainWindow::getProgrammerArgs(bool isEeprom) {
     if (isEeprom) return ui->comboEepromProg->currentData().toString();
     QString base = ui->comboProgrammer->currentData().toString(); QString speed = ui->comboSpeed->currentData().toString();
