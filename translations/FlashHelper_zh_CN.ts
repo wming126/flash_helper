@@ -391,6 +391,146 @@
         <source>Failed to save file: %1</source>
         <translation>保存文件失败: %1</translation>
     </message>
+    <message>
+        <source>Local Flash (Loongson)</source>
+        <translation>本地烧录 (龙芯)</translation>
+    </message>
+    <message>
+        <source>Local BIOS Access (Direct MMIO)</source>
+        <translation>本地 BIOS 访问 (直接 MMIO)</translation>
+    </message>
+    <message>
+        <source>Select BIOS file for local flashing...</source>
+        <translation>选择用于本地烧录的 BIOS 文件...</translation>
+    </message>
+    <message>
+        <source>Detect Local Chip</source>
+        <translation>检测本地芯片</translation>
+    </message>
+    <message>
+        <source>Write Local BIOS</source>
+        <translation>写入本地 BIOS</translation>
+    </message>
+    <message>
+        <source>Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</source>
+        <translation>警告: 直接 MMIO 烧录功能强大但也存在风险。请确保 BIOS 文件与此主板匹配。</translation>
+    </message>
+    <message>
+        <source>Open BIOS File</source>
+        <translation>打开 BIOS 文件</translation>
+    </message>
+    <message>
+        <source>Binary Files (*.bin *.rom);;All Files (*)</source>
+        <translation>二进制文件 (*.bin *.rom);;所有文件 (*)</translation>
+    </message>
+    <message>
+        <source>Selected local file: %1</source>
+        <translation>已选择本地文件: %1</translation>
+    </message>
+    <message>
+        <source>Failed to init local SPI driver. Please run with root/pkexec!</source>
+        <translation>初始化本地 SPI 驱动失败。请以 root 权限或通过 pkexec 运行！</translation>
+    </message>
+    <message>
+        <source>Detected Local Chip: %1</source>
+        <translation>已检测到本地芯片: %1</translation>
+    </message>
+    <message>
+        <source>Flash Size: %1 MB</source>
+        <translation>闪存大小: %1 MB</translation>
+    </message>
+    <message>
+        <source>No local chip detected or SPI busy.</source>
+        <translation>未检测到本地芯片或 SPI 忙。</translation>
+    </message>
+    <message>
+        <source>Failed to init local SPI driver.</source>
+        <translation>初始化本地 SPI 驱动失败。</translation>
+    </message>
+    <message>
+        <source>Starting local read (%1 MB)...</source>
+        <translation>开始本地读取 (%1 MB)...</translation>
+    </message>
+    <message>
+        <source>Local read finished.</source>
+        <translation>本地读取完成。</translation>
+    </message>
+    <message>
+        <source>Please select a file first.</source>
+        <translation>请先选择一个文件。</translation>
+    </message>
+    <message>
+        <source>Cannot open file: %1</source>
+        <translation>无法打开文件: %1</translation>
+    </message>
+    <message>
+        <source>Warning: File size (%1) is larger than flash size (%2)!</source>
+        <translation>警告: 文件大小 (%1) 大于闪存大小 (%2)！</translation>
+    </message>
+    <message>
+        <source>Starting local erase &amp; write...</source>
+        <translation>开始本地擦除与写入...</translation>
+    </message>
+    <message>
+        <source>Erasing...</source>
+        <translation>正在擦除...</translation>
+    </message>
+    <message>
+        <source>Writing...</source>
+        <translation>正在写入...</translation>
+    </message>
+    <message>
+        <source>Local write successfully completed!</source>
+        <translation>本地写入成功完成！</translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation>警告</translation>
+    </message>
+    <message>
+        <source>No data to write.</source>
+        <translation>无数据可写入。</translation>
+    </message>
+    <message>
+        <source>Failed to prepare data for writing.</source>
+        <translation>准备写入数据失败。</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation>错误</translation>
+    </message>
+    <message>
+        <source>Chip Info: Not Detected</source>
+        <translation>芯片信息: 未检测到</translation>
+    </message>
+    <message>
+        <source>Read &amp; Backup BIOS</source>
+        <translation>读取并备份 BIOS</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Step 1/3</source>
+        <translation>智能合并: 步骤 1/3</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Step 1/3 (Reading)</source>
+        <translation>智能合并: 步骤 1/3 (读取中)</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Step 2/3 (Merging)</source>
+        <translation>智能合并: 步骤 2/3 (合并中)</translation>
+    </message>
+    <message>
+        <source>Smart Merge Successful</source>
+        <translation>智能合并成功</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Reading...</source>
+        <translation>智能合并: 正在读取...</translation>
+    </message>
+    <message>
+        <source>Smart Merge: Writing...</source>
+        <translation>智能合并: 正在写入...</translation>
+    </message>
 </context>
 <context>
     <name>ChipPreviewWidget</name>

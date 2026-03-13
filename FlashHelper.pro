@@ -25,6 +25,9 @@ RESOURCES += \
 FORMS += \
     src/mainwindow.ui
 
+TRANSLATIONS += \
+    translations/FlashHelper_zh_CN.ts
+
 # Add packaging info (simplified for qmake)
 target.path = /usr/bin
 INSTALLS += target
