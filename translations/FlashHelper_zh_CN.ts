@@ -531,6 +531,40 @@
         <source>Smart Merge: Writing...</source>
         <translation>智能合并: 正在写入...</translation>
     </message>
+    <message>
+        <source>Authorization</source>
+        <translation>授权</translation>
+    </message>
+    <message>
+        <source>Local SPI hardware access requires root privileges.
+Please enter your password:</source>
+        <translation>本地 SPI 硬件访问需要 root 权限。
+请输入您的密码:</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>确定</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Multiple matches. Auto-selected: %1</source>
+        <translation>发现多个匹配项。已自动选择: %1</translation>
+    </message>
+    <message>
+        <source>Please click the button again to continue.</source>
+        <translation>请再次点击按钮以继续。</translation>
+    </message>
+    <message>
+        <source>Multiple chips detected</source>
+        <translation>已检测到多个芯片</translation>
+    </message>
+    <message>
+        <source>Multiple chips found, retry recommended</source>
+        <translation>发现多个芯片，建议重试</translation>
+    </message>
 </context>
 <context>
     <name>ChipPreviewWidget</name>

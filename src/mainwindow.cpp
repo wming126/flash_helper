@@ -315,7 +315,16 @@ bool MainWindow::runLocalHelper(const QStringList &args) {
     }
 
     bool ok;
-    QString pass = QInputDialog::getText(this, tr("Authorization"), tr("Enter password:"), QLineEdit::Password, "", &ok);
+    QInputDialog dialog(this);
+    dialog.setWindowTitle(tr("Authorization"));
+    dialog.setLabelText(tr("Local SPI hardware access requires root privileges.\nPlease enter your password:"));
+    dialog.setTextEchoMode(QLineEdit::Password);
+    dialog.setOkButtonText(tr("OK"));
+    dialog.setCancelButtonText(tr("Cancel"));
+    dialog.setMinimumWidth(450); // Increased width
+    
+    ok = dialog.exec();
+    QString pass = dialog.textValue();
     if (!ok || pass.isEmpty()) return false;
 
     accumulatedOutput.clear();
