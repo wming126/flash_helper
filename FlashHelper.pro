@@ -31,3 +31,11 @@ TRANSLATIONS += \
 # Add packaging info (simplified for qmake)
 target.path = /usr/bin
 INSTALLS += target
+
+# Build helper
+QMAKE_EXTRA_TARGETS += helper
+helper.target = flashhelper-helper
+helper.commands = g++ -O2 -std=c++17 ../src/helper.cpp ../src/localspidriver.cpp -I../src -o flashhelper-helper
+helper.depends = ../src/helper.cpp ../src/localspidriver.cpp
+PRE_TARGETDEPS += flashhelper-helper
+QMAKE_DISTCLEAN += flashhelper-helper

@@ -65,6 +65,8 @@ private:
     QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");
     void runCommand(const QString &cmd, const QStringList &args);
+    bool runLocalHelper(const QStringList &args);
+    QString getWorkPath(const QString &fileName);
     void loadDataToEditor(const QByteArray &data);
     QString prepareWriteFile();
     
@@ -73,6 +75,8 @@ private:
     State currentState = State::Idle;
     QStringList detectedChips;
     QString accumulatedError;
+    QString accumulatedOutput;
+    QString sudoPassword;
     
     struct FlashInfo {
         long flashSize = 0;

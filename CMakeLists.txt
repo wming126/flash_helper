@@ -85,12 +85,20 @@ add_executable(FlashHelper ${PROJECT_SOURCES})
 target_include_directories(FlashHelper PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(FlashHelper PRIVATE ${QT_LIBRARIES})
 
+# Build the helper (for root MMIO access)
+add_executable(flashhelper-helper 
+    src/helper.cpp 
+    src/localspidriver.cpp 
+    src/localspidriver.h
+)
+target_include_directories(flashhelper-helper PRIVATE ${CMAKE_SOURCE_DIR})
+
 # --- Packaging Logic ---
 # CPack doesn't work well with absolute paths in install commands.
 # Let's use relative paths.
 
 # 1. Install Binary
-install(TARGETS FlashHelper DESTINATION bin)
+install(TARGETS FlashHelper flashhelper-helper DESTINATION bin)
 
 # Install bundled flashrom binary
 # Note: This assumes flashrom has been built in flashrom/build/

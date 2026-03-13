@@ -44,6 +44,10 @@ mkdir -p $APPDIR/usr/share/applications
 
 # 4. 复制基础文件
 cp build/FlashHelper $APPDIR/usr/bin/
+if [ -f "build/flashhelper-helper" ]; then
+    cp build/flashhelper-helper $APPDIR/usr/bin/
+    chmod +x $APPDIR/usr/bin/flashhelper-helper
+fi
 cp -v -L "$FLASHROM_BIN" "$APPDIR/usr/bin/flashrom"
 chmod +x $APPDIR/usr/bin/flashrom
 cp res/flashhelper.svg $APPDIR/usr/share/icons/hicolor/scalable/apps/
