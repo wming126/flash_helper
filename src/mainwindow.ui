@@ -242,7 +242,7 @@
        </widget>
        <widget class="QWidget" name="tabLocal">
         <attribute name="title">
-         <string>Local Flash (Loongson)</string>
+         <string>Local Flash</string>
         </attribute>
         <layout class="QVBoxLayout" name="verticalLayout_local">
          <item>
@@ -341,7 +341,8 @@
          <item>
           <widget class="QLabel" name="label_local_warning">
            <property name="text">
-            <string>Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</string>
+            <string>Target Platform: Loongson 3A/3C (CPU SPI0).
+Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</string>
            </property>
            <property name="wordWrap">
             <bool>true</bool>

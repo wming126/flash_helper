@@ -412,12 +412,14 @@
         <translation>读取并备份 BIOS</translation>
     </message>
     <message>
-        <source>Write Local BIOS</source>
-        <translation>写入本地 BIOS</translation>
+        <source>Local Flash</source>
+        <translation>本地烧录</translation>
     </message>
     <message>
-        <source>Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</source>
-        <translation>警告: 直接 MMIO 烧录功能强大但也存在风险。请确保 BIOS 文件与此主板匹配。</translation>
+        <source>Target Platform: Loongson 3A/3C (CPU SPI0).
+    Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</source>
+        <translation>目标平台: 龙芯 3A/3C (CPU SPI0 控制器)。
+    警告: 直接 MMIO 烧录功能强大但也存在风险。请务必确认 BIOS 文件与当前主板匹配。</translation>
     </message>
     <message>
         <source>Open BIOS File</source>
