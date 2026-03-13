@@ -396,10 +396,52 @@
         <translation>本地烧录</translation>
     </message>
     <message>
+        <source>Local BIOS Access (Direct MMIO)</source>
+        <translation>本地 BIOS 访问 (直接 MMIO)</translation>
+    </message>
+    <message>
+        <source>Select BIOS file for local flashing...</source>
+        <translation>选择用于本地烧录的 BIOS 文件...</translation>
+    </message>
+    <message>
+        <source>Detect Local Chip</source>
+        <translation>检测本地芯片</translation>
+    </message>
+    <message>
+        <source>Read &amp; Backup BIOS</source>
+        <translation>读取并备份 BIOS</translation>
+    </message>
+    <message>
+        <source>Write Local BIOS</source>
+        <translation>本地烧录 BIOS</translation>
+    </message>
+    <message>
         <source>Target Platform: Loongson 3A/3C (CPU SPI0).
 Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is correct for this motherboard.</source>
         <translation>目标平台: 龙芯 3A/3C (CPU SPI0 控制器)。
 警告: 直接 MMIO 烧录功能强大但也存在风险。请务必确认 BIOS 文件与当前主板匹配。</translation>
+    </message>
+    <message>
+        <source>CRITICAL WARNING</source>
+        <translation>关键警告</translation>
+    </message>
+    <message>
+        <source>A local BIOS update is currently in progress!</source>
+        <translation>本地 BIOS 更新正在进行中！</translation>
+    </message>
+    <message>
+        <source>If you close the application now, your BIOS might be left in an incomplete state, and your computer WILL NOT BOOT next time.
+
+Are you absolutely sure you want to risk bricking your machine?</source>
+        <translation>如果您现在关闭应用程序，您的 BIOS 可能会处于不完整状态，您的计算机下次将无法启动。
+
+您确定要冒着机器变砖的风险吗？</translation>
+    </message>
+    <message>
+        <source>[Local Flash] Running: %1 %2
+</source>
+        <translation>[本地烧录] 正在运行: %1 %2
+</translation>
     </message>
     <message>
         <source>Open BIOS File</source>
@@ -412,6 +454,48 @@ Warning: Direct MMIO flashing is powerful but dangerous. Ensure the BIOS file is
     <message>
         <source>Selected local file: %1</source>
         <translation>已选择本地文件: %1</translation>
+    </message>
+    <message>
+        <source>Rules Installed</source>
+        <translation>规则已安装</translation>
+    </message>
+    <message>
+        <source>Permission rules have been installed.
+
+You have been added to 'plugdev' and 'dialout' groups.
+Please LOG OUT and LOG IN again for changes to take effect.</source>
+        <translation>权限规则已安装。
+
+您已被添加到 'plugdev' 和 'dialout' 用户组。
+请 退出登录 并 重新登录，以使更改生效。</translation>
+    </message>
+    <message>
+        <source>Starting local read (%1 MB)...</source>
+        <translation>正在开始本地读取 (%1 MB)...</translation>
+    </message>
+    <message>
+        <source>Local read finished.</source>
+        <translation>本地读取完成。</translation>
+    </message>
+    <message>
+        <source>Starting local erase &amp; write...</source>
+        <translation>正在开始本地擦除与写入...</translation>
+    </message>
+    <message>
+        <source>Erasing...</source>
+        <translation>正在擦除...</translation>
+    </message>
+    <message>
+        <source>Writing...</source>
+        <translation>正在写入...</translation>
+    </message>
+    <message>
+        <source>Local write successfully completed!</source>
+        <translation>本地写入已成功完成！</translation>
+    </message>
+    <message>
+        <source>Failed to init local SPI driver.</source>
+        <translation>初始化本地 SPI 驱动失败。</translation>
     </message>
     <message>
         <source>Failed to init local SPI driver. Please run with root/pkexec!</source>
