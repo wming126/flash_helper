@@ -130,11 +130,13 @@ uint8_t LocalSpiDriver::regRead8(uint8_t reg) {
 }
 
 void LocalSpiDriver::spiFlashInit() {
-    // Save current state
-    m_savedSpcr = regRead8(REG_SPCR);
-    m_savedSpsr = regRead8(REG_SPSR);
-    m_savedSper = regRead8(REG_SPER);
-    m_savedParam = regRead8(REG_PARAM);
+    // Save current state only if not already saved
+    if (m_savedSpcr == 0xFF) {
+        m_savedSpcr = regRead8(REG_SPCR);
+        m_savedSpsr = regRead8(REG_SPSR);
+        m_savedSper = regRead8(REG_SPER);
+        m_savedParam = regRead8(REG_PARAM);
+    }
 
     if (m_is3C5000 || m_is3D5000) {
         // Speed down for 3C/3D5000 stability (ported from OsTools)
@@ -160,25 +162,32 @@ void LocalSpiDriver::spiFlashReset() {
         regWrite8(REG_SPER, m_savedSper);
         regWrite8(REG_PARAM, m_savedParam);
         regWrite8(REG_PARAM, 0x47); // Reset to default state
+        
+        m_savedSpcr = 0xFF;
     }
 }
 
-void LocalSpiDriver::spiFlashWait() {
+uint8_t LocalSpiDriver::spiFlashWait() {
+    uint8_t sr = 0;
     int timeout = 1000000;
     while (timeout--) {
         spiFlashSetCs(true);
         spiTransferByte(CMD_RDSR);
-        uint8_t sr = spiTransferByte(0x00);
+        sr = spiTransferByte(0x00);
         spiFlashSetCs(false);
-        if (!(sr & SR_BUSY)) return;
+        if (!(sr & SR_BUSY)) break;
+        
+        // Small delay between polls
+        for(volatile int i=0; i<100; i++);
     }
+    return sr;
 }
 
 void LocalSpiDriver::spiFlashSetCs(bool enable) {
     // 0x01: CS Low (Enable/Select), 0x11: CS High (Disable/Deselect)
     regWrite8(REG_SOFTCS, enable ? 0x01 : 0x11);
     // Small busy delay to match OsTools' SpiFlashDelayUs(3)
-    for(volatile int i=0; i<200; i++); 
+    for(volatile int i=0; i<500; i++); 
 }
 
 uint8_t LocalSpiDriver::spiTransferByte(uint8_t val) {
@@ -196,16 +205,39 @@ void LocalSpiDriver::spiWriteEnable() {
 }
 
 void LocalSpiDriver::spiDisableWriteProtection() {
-    spiFlashWait();
-    // Enable status register write
+    uint8_t sr = spiFlashWait();
+    
+    // Clear BP bits (Bit 2, 3, 4) but preserve others (like QE, SRWD, etc.)
+    sr &= ~(SR_BP0 | SR_BP1 | SR_BP2);
+
+    // Method 1: Use 0x50 (EWSR)
     spiFlashSetCs(true);
-    spiTransferByte(0x50); // EWSR
+    spiTransferByte(0x50); 
     spiFlashSetCs(false);
 
-    // Write SR to clear BP bits
     spiFlashSetCs(true);
     spiTransferByte(CMD_WRSR);
-    spiTransferByte(0x00);
+    spiTransferByte(sr);
+    spiFlashSetCs(false);
+    spiFlashWait();
+
+    // Method 2: Use 0x06 (WREN) for chips that don't support 0x50
+    spiWriteEnable();
+    spiFlashSetCs(true);
+    spiTransferByte(CMD_WRSR);
+    spiTransferByte(sr);
+    spiFlashSetCs(false);
+    spiFlashWait();
+}
+
+void LocalSpiDriver::spiEnableWriteProtection() {
+    uint8_t sr = spiFlashWait();
+    sr |= (SR_BP0 | SR_BP1 | SR_BP2);
+
+    spiWriteEnable();
+    spiFlashSetCs(true);
+    spiTransferByte(CMD_WRSR);
+    spiTransferByte(sr);
     spiFlashSetCs(false);
     spiFlashWait();
 }
@@ -225,6 +257,7 @@ bool LocalSpiDriver::detectChip(uint8_t &manuId, uint8_t &devId, uint8_t &capaId
 
 bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) {
     spiFlashInit();
+    spiFlashWait(); // Ensure chip is ready before reading
     spiFlashSetCs(true);
     spiTransferByte(CMD_FAST_READ);
     spiTransferByte((offset >> 16) & 0xFF);
@@ -258,6 +291,7 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
         pos += 4096; // 4K Block
     }
 
+    spiEnableWriteProtection();
     spiFlashReset();
     return true;
 }
@@ -279,6 +313,7 @@ bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *b
         spiFlashWait();
     }
 
+    spiEnableWriteProtection();
     spiFlashReset();
     return true;
 }

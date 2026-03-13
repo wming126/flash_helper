@@ -34,7 +34,7 @@ private:
     // Low-level SPI primitives
     void spiFlashInit();
     void spiFlashReset();
-    void spiFlashWait();
+    uint8_t spiFlashWait();
     void spiFlashSetCs(bool enable);
     uint8_t spiTransferByte(uint8_t val);
     void spiWriteEnable();
