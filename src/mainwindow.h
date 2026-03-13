@@ -46,6 +46,9 @@ private slots:
     void on_btnLocalWrite_clicked();
     void on_btnLocalBrowse_clicked();
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private:
     Ui::MainWindow *ui;
     QProcess *process;
@@ -59,6 +62,7 @@ private:
     class QGroupBox *previewGroup;
     LocalSpiDriver *localSpi;
 
+    void lockUi(bool locked);
     void updateSystemStatus();
     void fetchSupportedChips();
     QString getProgrammerArgs(bool isEeprom = false);

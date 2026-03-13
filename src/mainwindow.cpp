@@ -3,6 +3,7 @@
 #include "chippreviewwidget.h"
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QCloseEvent>
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QDataStream>
@@ -417,6 +418,7 @@ void MainWindow::handleSmartWrite(const QString &error) {
 }
 
 void MainWindow::processFinished(int exitCode) {
+    lockUi(false);
     QString combined = accumulatedOutput + "\n" + accumulatedError;
     if (exitCode != 0) {
         if (combined.contains("Multiple flash chip definitions match") || combined.contains("Please specify which chip definition")) {
@@ -547,22 +549,26 @@ void MainWindow::on_btnLocalBrowse_clicked() {
 void MainWindow::on_btnLocalDetect_clicked() { currentState = State::LocalDetect; if (!runLocalHelper({"detect"})) currentState = State::Idle; }
 void MainWindow::on_btnLocalRead_clicked() { 
     currentState = State::LocalRead; 
+    lockUi(true);
     ui->progressBar->setRange(0, 0); // Indeterminate
     ui->progressBar->show();
     ui->statusbar->showMessage(tr("Starting local read (%1 MB)...").arg(localSpi->getFlashSize() / 1024 / 1024));
     if (!runLocalHelper({"read", getWorkPath("flash_read.bin"), QString::number(localSpi->getFlashSize())})) {
         currentState = State::Idle;
+        lockUi(false);
         ui->progressBar->hide();
     }
 }
 void MainWindow::on_btnLocalWrite_clicked() { 
     if (localFile.isEmpty()) { QMessageBox::warning(this, tr("Error"), tr("Please select a file first.")); return; }
     currentState = State::LocalWrite; 
+    lockUi(true);
     ui->progressBar->setRange(0, 0); // Indeterminate
     ui->progressBar->show();
     ui->statusbar->showMessage(tr("Starting local erase & write..."));
     if (!runLocalHelper({"write", localFile})) {
         currentState = State::Idle;
+        lockUi(false);
         ui->progressBar->hide();
     }
 }
@@ -574,3 +580,35 @@ void MainWindow::showLogContextMenu(const QPoint &pos) {
     menu.exec(ui->textLog->mapToGlobal(pos));
 }
 void MainWindow::on_comboProgrammer_currentIndexChanged(int) {}
+
+void MainWindow::lockUi(bool locked) {
+    ui->tabWidget->setEnabled(!locked);
+    // Explicitly hide tab bar to make it truly locked visually
+    if (locked) {
+        ui->tabWidget->setStyleSheet("QTabBar::tab { height: 0px; width: 0px; margin: 0px; padding: 0px; border: none; }");
+    } else {
+        ui->tabWidget->setStyleSheet("");
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+    if (currentState == State::LocalWrite || currentState == State::LocalRead) {
+        QMessageBox msgBox(this);
+        msgBox.setIcon(QMessageBox::Critical);
+        msgBox.setWindowTitle(tr("CRITICAL WARNING"));
+        msgBox.setText(tr("A local BIOS update is currently in progress!"));
+        msgBox.setInformativeText(tr("If you close the application now, your BIOS might be left in an incomplete state, "
+                                     "and your computer WILL NOT BOOT next time.\n\n"
+                                     "Are you absolutely sure you want to risk bricking your machine?"));
+        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox.setDefaultButton(QMessageBox::No);
+        
+        if (msgBox.exec() == QMessageBox::Yes) {
+            event->accept();
+        } else {
+            event->ignore();
+        }
+    } else {
+        event->accept();
+    }
+}

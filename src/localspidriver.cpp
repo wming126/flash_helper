@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <cstring>
 
-// SPI Register Offsets (Loongson Specific)
+// SPI Register Offsets (Strictly from OsTools/LoongArch/spi.c)
 #define REG_SPCR   0x00
 #define REG_SPSR   0x01
 #define REG_SPDR   0x02
@@ -15,17 +15,15 @@
 #define REG_SOFTCS 0x05
 #define REG_TIME   0x06
 
-// SPI Commands
+// SPI Commands (Strictly from OsTools/LoongArch/spi.c)
 #define CMD_WREN       0x06
 #define CMD_WRDI       0x04
-#define CMD_RDID       0x9F
 #define CMD_RDSR       0x05
 #define CMD_WRSR       0x01
-#define CMD_READ       0x03
 #define CMD_FAST_READ  0x0B
 #define CMD_BYTE_WRITE 0x02
 #define CMD_BE4K       0x20
-#define CMD_BE64K      0xD8
+#define CMD_EWSR       0x50
 
 // Status Register Bits
 #define SR_BUSY        (1 << 0)
@@ -44,13 +42,12 @@ bool LocalSpiDriver::init() {
     m_is3C5000 = (cpuModel.find("3C5000") != std::string::npos);
     m_is3D5000 = (cpuModel.find("3D5000") != std::string::npos);
 
-    m_physBaseAddr = getRegBaseAddr();
-    if (m_physBaseAddr == 0) return false;
+    m_physBaseAddr = getRegBaseAddr(); // Returns 0x1fe001f0
 
     m_memFd = open("/dev/mem", O_RDWR | O_SYNC);
     if (m_memFd < 0) return false;
 
-    // Map 4KB for registers (enough for SPI controller)
+    // Map the register base
     uint64_t map_base = m_physBaseAddr & ~0xFFF;
     uint32_t map_offset = m_physBaseAddr & 0xFFF;
     
@@ -61,15 +58,12 @@ bool LocalSpiDriver::init() {
         return false;
     }
 
-    // Adjust virtual address to the exact register start
     m_virtBaseAddr = (uint8_t*)m_virtBaseAddr + map_offset;
-
     return true;
 }
 
 void LocalSpiDriver::release() {
     if (m_virtBaseAddr && m_virtBaseAddr != MAP_FAILED) {
-        // Correctly calculate the mapping base for munmap
         uint64_t map_offset = m_physBaseAddr & 0xFFF;
         munmap((uint8_t*)m_virtBaseAddr - map_offset, 4096);
         m_virtBaseAddr = nullptr;
@@ -86,37 +80,15 @@ std::string LocalSpiDriver::getCpuModel() {
     while (std::getline(cpuinfo, line)) {
         if (line.find("model name") != std::string::npos) {
             size_t pos = line.find(":");
-            if (pos != std::string::npos) {
-                return line.substr(pos + 1);
-            }
+            if (pos != std::string::npos) return line.substr(pos + 1);
         }
     }
     return "";
 }
 
 uint64_t LocalSpiDriver::getRegBaseAddr() {
-    // Default standard LS3A/7A bridge SPI base address
-    uint64_t base = 0x1fe001f0;
-
-    // Dynamically detect LS7A Bridge SPI Address from PCI Config Space BAR0
-    // Physical address: 0xefdfe000010 (Device 22, Function 0, Offset 0x10)
-    int fd = open("/dev/mem", O_RDONLY | O_SYNC);
-    if (fd >= 0) {
-        uint64_t pci_config_spi = 0xefdfe000000ULL | (22 << 11) | 0x10;
-        uint64_t map_base = pci_config_spi & ~0xFFF;
-        uint32_t map_offset = pci_config_spi & 0xFFF;
-        void* p = mmap(nullptr, 4096, PROT_READ, MAP_SHARED, fd, (off_t)map_base);
-        if (p != MAP_FAILED) {
-            uint32_t bar0 = *(volatile uint32_t*)((uint8_t*)p + map_offset);
-            munmap(p, 4096);
-            // Mask out non-address bits of BAR
-            if (bar0 != 0xFFFFFFFF && bar0 != 0) {
-                base = bar0 & 0xfffffff0;
-            }
-        }
-        close(fd);
-    }
-    return base;
+    // Strictly OsTools: Hardcoded address for CPU SPI0 (BIOS)
+    return 0x1fe001f0;
 }
 
 void LocalSpiDriver::regWrite8(uint8_t reg, uint8_t val) {
@@ -130,7 +102,6 @@ uint8_t LocalSpiDriver::regRead8(uint8_t reg) {
 }
 
 void LocalSpiDriver::spiFlashInit() {
-    // Save current state only if not already saved
     if (m_savedSpcr == 0xFF) {
         m_savedSpcr = regRead8(REG_SPCR);
         m_savedSpsr = regRead8(REG_SPSR);
@@ -139,14 +110,12 @@ void LocalSpiDriver::spiFlashInit() {
     }
 
     if (m_is3C5000 || m_is3D5000) {
-        // Speed down for 3C/3D5000 stability (ported from OsTools)
         regWrite8(REG_SPCR, 0x52);
         regWrite8(REG_SPSR, 0xc0);
         regWrite8(REG_SPER, 0x04);
         regWrite8(REG_PARAM, 0x20);
         regWrite8(REG_TIME, 0x01);
     } else {
-        // Default performance
         regWrite8(REG_SPCR, 0x50);
         regWrite8(REG_SPSR, 0xc0);
         regWrite8(REG_SPER, 0x05);
@@ -161,33 +130,34 @@ void LocalSpiDriver::spiFlashReset() {
         regWrite8(REG_SPSR, m_savedSpsr);
         regWrite8(REG_SPER, m_savedSper);
         regWrite8(REG_PARAM, m_savedParam);
-        regWrite8(REG_PARAM, 0x47); // Reset to default state
-        
+        regWrite8(REG_PARAM, 0x47); // Reset SFC Param Reg
         m_savedSpcr = 0xFF;
     }
 }
 
 uint8_t LocalSpiDriver::spiFlashWait() {
-    uint8_t sr = 0;
-    int timeout = 1000000;
-    while (timeout--) {
-        spiFlashSetCs(true);
+    uint8_t Ret;
+    int TimeOut = 100000;
+    int Count = 5;
+    do {
+        // SpiFlashReadStatus inline
+        regWrite8(REG_SOFTCS, 0x01);
         spiTransferByte(CMD_RDSR);
-        sr = spiTransferByte(0x00);
-        spiFlashSetCs(false);
-        if (!(sr & SR_BUSY)) break;
-        
-        // Small delay between polls
-        for(volatile int i=0; i<100; i++);
-    }
-    return sr;
+        Ret = spiTransferByte(0x00);
+        regWrite8(REG_SOFTCS, 0x11);
+
+        if (TimeOut == 0) {
+            Count--;
+            if (Count < 0) break;
+            TimeOut = 100000;
+        }
+    } while ((Ret & 0x01) && TimeOut--);
+    return Ret;
 }
 
 void LocalSpiDriver::spiFlashSetCs(bool enable) {
-    // 0x01: CS Low (Enable/Select), 0x11: CS High (Disable/Deselect)
     regWrite8(REG_SOFTCS, enable ? 0x01 : 0x11);
-    // Small busy delay to match OsTools' SpiFlashDelayUs(3)
-    for(volatile int i=0; i<500; i++); 
+    for(volatile int i=0; i<300; i++); // ~3us delay
 }
 
 uint8_t LocalSpiDriver::spiTransferByte(uint8_t val) {
@@ -199,77 +169,82 @@ uint8_t LocalSpiDriver::spiTransferByte(uint8_t val) {
 
 void LocalSpiDriver::spiWriteEnable() {
     spiFlashWait();
-    spiFlashSetCs(true);
+    regWrite8(REG_SOFTCS, 0x01);
     spiTransferByte(CMD_WREN);
-    spiFlashSetCs(false);
+    regWrite8(REG_SOFTCS, 0x11);
 }
 
 void LocalSpiDriver::spiDisableWriteProtection() {
-    uint8_t sr = spiFlashWait();
-    
-    // Clear BP bits (Bit 2, 3, 4) but preserve others (like QE, SRWD, etc.)
-    sr &= ~(SR_BP0 | SR_BP1 | SR_BP2);
+    // Strictly OsTools: SpiFlashDisableWriteProtection
+    uint8_t Val = spiFlashWait();
+    Val &= ~(SR_BP0 | SR_BP1 | SR_BP2);
 
-    // Method 1: Use 0x50 (EWSR)
-    spiFlashSetCs(true);
-    spiTransferByte(0x50); 
-    spiFlashSetCs(false);
-
-    spiFlashSetCs(true);
-    spiTransferByte(CMD_WRSR);
-    spiTransferByte(sr);
-    spiFlashSetCs(false);
+    // SpiFlashWriteStatus(Val)
+    // 1. SpiFlashEWRS()
     spiFlashWait();
+    regWrite8(REG_SOFTCS, 0x01);
+    spiTransferByte(CMD_EWSR);
+    regWrite8(REG_SOFTCS, 0x11);
 
-    // Method 2: Use 0x06 (WREN) for chips that don't support 0x50
-    spiWriteEnable();
-    spiFlashSetCs(true);
+    // 2. WRSR
+    regWrite8(REG_SOFTCS, 0x01);
     spiTransferByte(CMD_WRSR);
-    spiTransferByte(sr);
-    spiFlashSetCs(false);
+    spiTransferByte(Val);
+    regWrite8(REG_SOFTCS, 0x11);
+
+    // 3. SpiFlashWriteDisable()
+    spiFlashWait();
+    regWrite8(REG_SOFTCS, 0x01);
+    spiTransferByte(CMD_WRDI);
+    regWrite8(REG_SOFTCS, 0x11);
+
     spiFlashWait();
 }
 
 void LocalSpiDriver::spiEnableWriteProtection() {
-    uint8_t sr = spiFlashWait();
-    sr |= (SR_BP0 | SR_BP1 | SR_BP2);
+    uint8_t Val = (SR_BP0 | SR_BP1 | SR_BP2);
+    
+    spiFlashWait();
+    regWrite8(REG_SOFTCS, 0x01);
+    spiTransferByte(CMD_EWSR);
+    regWrite8(REG_SOFTCS, 0x11);
 
-    spiWriteEnable();
-    spiFlashSetCs(true);
+    regWrite8(REG_SOFTCS, 0x01);
     spiTransferByte(CMD_WRSR);
-    spiTransferByte(sr);
-    spiFlashSetCs(false);
+    spiTransferByte(Val);
+    regWrite8(REG_SOFTCS, 0x11);
+
+    spiFlashWait();
+    regWrite8(REG_SOFTCS, 0x01);
+    spiTransferByte(CMD_WRDI);
+    regWrite8(REG_SOFTCS, 0x11);
+
     spiFlashWait();
 }
 
 bool LocalSpiDriver::detectChip(uint8_t &manuId, uint8_t &devId, uint8_t &capaId) {
     spiFlashInit();
     spiFlashWait();
-    spiFlashSetCs(true);
-    spiTransferByte(CMD_RDID);
+    regWrite8(REG_SOFTCS, 0x01);
+    spiTransferByte(0x9F); // RDID
     manuId = spiTransferByte(0x00);
     devId = spiTransferByte(0x00);
     capaId = spiTransferByte(0x00);
-    spiFlashSetCs(false);
+    regWrite8(REG_SOFTCS, 0x11);
     spiFlashReset();
     return (manuId != 0xFF && manuId != 0x00);
 }
 
 bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) {
     spiFlashInit();
-    spiFlashWait(); // Ensure chip is ready before reading
-    spiFlashSetCs(true);
+    regWrite8(REG_SOFTCS, 0x01);
     spiTransferByte(CMD_FAST_READ);
-    spiTransferByte((offset >> 16) & 0xFF);
-    spiTransferByte((offset >> 8) & 0xFF);
-    spiTransferByte(offset & 0xFF);
-    spiTransferByte(0x00); // Dummy byte for fast read
-
-    for (uint32_t i = 0; i < size; i++) {
-        buffer[i] = spiTransferByte(0x00);
-    }
-
-    spiFlashSetCs(false);
+    spiTransferByte((offset >> 16) & 0xff);
+    spiTransferByte((offset >> 8) & 0xff);
+    spiTransferByte(offset & 0xff);
+    spiTransferByte(0x00); // Dummy
+    for (uint32_t i = 0; i < size; i++) buffer[i] = spiTransferByte(0x00);
+    regWrite8(REG_SOFTCS, 0x11);
     spiFlashReset();
     return true;
 }
@@ -277,20 +252,19 @@ bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) 
 bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
     spiFlashInit();
     spiDisableWriteProtection();
-
     uint32_t pos = offset;
     while (pos < offset + size) {
         spiWriteEnable();
-        spiFlashSetCs(true);
-        spiTransferByte(CMD_BE4K);
-        spiTransferByte((pos >> 16) & 0xFF);
-        spiTransferByte((pos >> 8) & 0xFF);
-        spiTransferByte(pos & 0xFF);
-        spiFlashSetCs(false);
         spiFlashWait();
-        pos += 4096; // 4K Block
+        regWrite8(REG_SOFTCS, 0x01);
+        spiTransferByte(CMD_BE4K);
+        spiTransferByte((pos >> 16) & 0xff);
+        spiTransferByte((pos >> 8) & 0xff);
+        spiTransferByte(pos & 0xff);
+        regWrite8(REG_SOFTCS, 0x11);
+        spiFlashWait();
+        pos += 4096;
     }
-
     spiEnableWriteProtection();
     spiFlashReset();
     return true;
@@ -299,20 +273,18 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
 bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *buffer) {
     spiFlashInit();
     spiDisableWriteProtection();
-
     for (uint32_t i = 0; i < size; i++) {
         uint32_t pos = offset + i;
         spiWriteEnable();
-        spiFlashSetCs(true);
+        regWrite8(REG_SOFTCS, 0x01);
         spiTransferByte(CMD_BYTE_WRITE);
-        spiTransferByte((pos >> 16) & 0xFF);
-        spiTransferByte((pos >> 8) & 0xFF);
-        spiTransferByte(pos & 0xFF);
+        spiTransferByte((pos >> 16) & 0xff);
+        spiTransferByte((pos >> 8) & 0xff);
+        spiTransferByte(pos & 0xff);
         spiTransferByte(buffer[i]);
-        spiFlashSetCs(false);
+        regWrite8(REG_SOFTCS, 0x11);
         spiFlashWait();
     }
-
     spiEnableWriteProtection();
     spiFlashReset();
     return true;
