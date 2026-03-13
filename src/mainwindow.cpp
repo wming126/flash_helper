@@ -149,8 +149,14 @@ QString MainWindow::getWorkPath(const QString &fileName) {
 }
 
 void MainWindow::updateSystemStatus() {
-    bool permissionDenied = !QFileInfo("/dev/mem").isReadable();
-    ui->lblUdevStatus->setText(permissionDenied ? tr("Hardware Access: <font color='red'>Denied (Requires Root)</font>") : tr("Hardware Access: <font color='green'>OK (Direct Access)</font>"));
+    bool mmioAccess = QFileInfo("/dev/mem").isReadable();
+    bool usbAccess = QFileInfo("/dev/ttyACM0").isWritable() || QFileInfo("/dev/ttyUSB0").isWritable();
+    
+    QString status;
+    if (mmioAccess || usbAccess) status = tr("Hardware Access: <font color='green'>OK (Direct Access)</font>");
+    else status = tr("Hardware Access: <font color='red'>Denied (Requires Root)</font>");
+    
+    ui->lblUdevStatus->setText(status);
     ui->lblPolkitStatus->setText(QFile::exists("/etc/udev/rules.d/z60_flashrom.rules") ? tr("System Config: <font color='green'>Rules Installed</font>") : tr("System Config: <font color='red'>Not Configured</font>"));
 }
 
@@ -250,8 +256,21 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
     if (cmd == "pkexec" && !finalArgs.isEmpty()) {
         QString cmdToRun = finalArgs[0];
         if (cmdToRun == "flashrom") cmdToRun = flashromPath;
+
+        // Skip pkexec if direct access is possible (e.g. STM32 with udev rules)
+        if (cmdToRun.contains("flashrom")) {
+            QString progArgs = getProgrammerArgs();
+            if (progArgs.contains("serprog") && (QFileInfo("/dev/ttyACM0").isWritable() || QFileInfo("/dev/ttyUSB0").isWritable())) {
+                finalCmd = cmdToRun;
+                finalArgs.removeFirst();
+                log(tr("[Direct Access]"), "gray");
+                goto start_proc;
+            }
+        }
+
         if (cmdToRun.contains("/.mount_")) {
-            QString tempPath = QDir::tempPath() + "/" + QFileInfo(cmdToRun).fileName() + "_internal_" + qgetenv("USER");
+            QString binaryName = QFileInfo(cmdToRun).fileName();
+            QString tempPath = QDir::tempPath() + "/" + binaryName + "_internal_" + qgetenv("USER");
             if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
                 if (QFile::copy(cmdToRun, tempPath)) {
                     QFile::setPermissions(tempPath, QFile::Permissions(0x7777));
@@ -262,6 +281,7 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
         finalArgs[0] = cmdToRun;
     }
 
+start_proc:
     log(tr("Final Command: %1 %2").arg(finalCmd, finalArgs.join(" ")), "gray");
     QString statusText;
     switch (currentState) {
@@ -283,7 +303,18 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
 bool MainWindow::runLocalHelper(const QStringList &args) {
     QString helperPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashhelper-helper");
     if (!QFile::exists(helperPath)) helperPath = QDir::current().absoluteFilePath("flashhelper-helper");
+    if (!QFile::exists(helperPath)) helperPath = "./flashhelper-helper";
     
+    if (helperPath.contains("/.mount_")) {
+        QString tempPath = QDir::tempPath() + "/flashhelper-helper_internal_" + qgetenv("USER");
+        if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
+            if (QFile::copy(helperPath, tempPath)) {
+                QFile::setPermissions(tempPath, QFile::Permissions(0x7777));
+                helperPath = tempPath;
+            }
+        }
+    }
+
     bool ok;
     QString pass = QInputDialog::getText(this, tr("Authorization"), tr("Enter password:"), QLineEdit::Password, "", &ok);
     if (!ok || pass.isEmpty()) return false;
