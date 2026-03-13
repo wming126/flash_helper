@@ -79,9 +79,35 @@ MainWindow::MainWindow(QWidget *parent)
         if (index == 0) spiMainLayout->addWidget(this->previewGroup);
         else if (index == 1) eepMainLayout->addWidget(this->previewGroup);
         
+        // Hide editor and log on "About" tab (index 4)
+        bool isAbout = (index == 4);
+        ui->editorContainer->setVisible(!isAbout);
+        ui->textLog->setVisible(!isAbout);
+
         // Progress bar management
         if (index != 2) ui->progressBar->hide();
     });
+
+    // Populate About tab details
+    QString version = "v1.3.0"; // Should ideally come from a macro or build system
+#ifdef APP_VERSION
+    version = APP_VERSION;
+#endif
+    ui->label_title_about->setText(QString("FlashHelper %1").arg(version));
+    
+    QLabel *instructions = new QLabel(this);
+    instructions->setWordWrap(true);
+    instructions->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    instructions->setTextFormat(Qt::RichText);
+    instructions->setText(tr("<h3>Tool Description</h3>"
+                             "<p>FlashHelper is a graphical front-end for flashrom, designed for BIOS and EEPROM flashing.</p>"
+                             "<h3>Usage Instructions</h3>"
+                             "<ul>"
+                             "<li><b>SPI/EEPROM:</b> Select programmer, chip model, and file, then click Read/Write.</li>"
+                             "<li><b>Local Flash:</b> Direct hardware access for Loongson platforms (requires root).</li>"
+                             "<li><b>System Setup:</b> Install udev rules to enable non-root access for USB programmers.</li>"
+                             "</ul>"));
+    ui->verticalLayout_about->insertWidget(4, instructions);
 
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);

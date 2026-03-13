@@ -408,6 +408,10 @@
         <translation>检测本地芯片</translation>
     </message>
     <message>
+        <source>Read &amp; Backup BIOS</source>
+        <translation>读取并备份 BIOS</translation>
+    </message>
+    <message>
         <source>Write Local BIOS</source>
         <translation>写入本地 BIOS</translation>
     </message>
@@ -504,34 +508,6 @@
         <translation>芯片信息: 未检测到</translation>
     </message>
     <message>
-        <source>Read &amp; Backup BIOS</source>
-        <translation>读取并备份 BIOS</translation>
-    </message>
-    <message>
-        <source>Smart Merge: Step 1/3</source>
-        <translation>智能合并: 步骤 1/3</translation>
-    </message>
-    <message>
-        <source>Smart Merge: Step 1/3 (Reading)</source>
-        <translation>智能合并: 步骤 1/3 (读取中)</translation>
-    </message>
-    <message>
-        <source>Smart Merge: Step 2/3 (Merging)</source>
-        <translation>智能合并: 步骤 2/3 (合并中)</translation>
-    </message>
-    <message>
-        <source>Smart Merge Successful</source>
-        <translation>智能合并成功</translation>
-    </message>
-    <message>
-        <source>Smart Merge: Reading...</source>
-        <translation>智能合并: 正在读取...</translation>
-    </message>
-    <message>
-        <source>Smart Merge: Writing...</source>
-        <translation>智能合并: 正在写入...</translation>
-    </message>
-    <message>
         <source>Authorization</source>
         <translation>授权</translation>
     </message>
@@ -565,6 +541,10 @@ Please enter your password:</source>
         <source>Multiple chips found, retry recommended</source>
         <translation>发现多个芯片，建议重试</translation>
     </message>
+    <message>
+        <source>&lt;h3&gt;Tool Description&lt;/h3&gt;&lt;p&gt;FlashHelper is a graphical front-end for flashrom, designed for BIOS and EEPROM flashing.&lt;/p&gt;&lt;h3&gt;Usage Instructions&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;SPI/EEPROM:&lt;/b&gt; Select programmer, chip model, and file, then click Read/Write.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Local Flash:&lt;/b&gt; Direct hardware access for Loongson platforms (requires root).&lt;/li&gt;&lt;li&gt;&lt;b&gt;System Setup:&lt;/b&gt; Install udev rules to enable non-root access for USB programmers.&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation>&lt;h3&gt;工具说明&lt;/h3&gt;&lt;p&gt;FlashHelper 是 flashrom 的图形化前端，专门用于 BIOS 和 EEPROM 的烧录。&lt;/p&gt;&lt;h3&gt;使用说明&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;SPI/EEPROM:&lt;/b&gt; 选择烧录器、芯片型号和文件，然后点击读取/写入。&lt;/li&gt;&lt;li&gt;&lt;b&gt;本地烧录:&lt;/b&gt; 龙芯平台的直接硬件访问（需要 root 权限）。&lt;/li&gt;&lt;li&gt;&lt;b&gt;系统设置:&lt;/b&gt; 安装 udev 规则以允许普通用户访问 USB 烧录器。&lt;/li&gt;&lt;/ul&gt;</translation>
+    </message>
 </context>
 <context>
     <name>ChipPreviewWidget</name>
@@ -589,8 +569,8 @@ Please enter your password:</source>
         <translation>芯片</translation>
     </message>
     <message>
-        <source>Click to manually cycle package types (SOP8 -> SOP16 -> I2C -> WSON8)</source>
-        <translation>点击可手动循环切换封装类型 (SOP8 -> SOP16 -> I2C -> WSON8)</translation>
+        <source>Click to manually cycle package types (SOP8 -&gt; SOP16 -&gt; I2C -&gt; WSON8)</source>
+        <translation>点击可手动循环切换封装类型 (SOP8 -&gt; SOP16 -&gt; I2C -&gt; WSON8)</translation>
     </message>
 </context>
 <context>
