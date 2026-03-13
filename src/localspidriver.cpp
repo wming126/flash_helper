@@ -137,8 +137,7 @@ void LocalSpiDriver::spiFlashReset() {
 
 uint8_t LocalSpiDriver::spiFlashWait() {
     uint8_t Ret;
-    int TimeOut = 100000;
-    int Count = 5;
+    int TimeOut = 1000000; // Increased timeout
     do {
         // SpiFlashReadStatus inline
         regWrite8(REG_SOFTCS, 0x01);
@@ -146,23 +145,23 @@ uint8_t LocalSpiDriver::spiFlashWait() {
         Ret = spiTransferByte(0x00);
         regWrite8(REG_SOFTCS, 0x11);
 
-        if (TimeOut == 0) {
-            Count--;
-            if (Count < 0) break;
-            TimeOut = 100000;
-        }
-    } while ((Ret & 0x01) && TimeOut--);
+        if (!(Ret & 0x01)) break;
+        
+        // Small delay in polling loop
+        for(volatile int i=0; i<1000; i++); 
+    } while (TimeOut--);
     return Ret;
 }
 
 void LocalSpiDriver::spiFlashSetCs(bool enable) {
     regWrite8(REG_SOFTCS, enable ? 0x01 : 0x11);
-    for(volatile int i=0; i<300; i++); // ~3us delay
+    // Increased delay significantly to be safe on high-frequency CPUs
+    for(volatile int i=0; i<5000; i++); 
 }
 
 uint8_t LocalSpiDriver::spiTransferByte(uint8_t val) {
     regWrite8(REG_SPDR, val);
-    int timeout = 100000;
+    int timeout = 1000000;
     while ((regRead8(REG_SPSR) & 0x01) && timeout--);
     return regRead8(REG_SPDR);
 }
@@ -172,6 +171,8 @@ void LocalSpiDriver::spiWriteEnable() {
     regWrite8(REG_SOFTCS, 0x01);
     spiTransferByte(CMD_WREN);
     regWrite8(REG_SOFTCS, 0x11);
+    // OsTools often has a wait or delay after WREN
+    spiFlashWait(); 
 }
 
 void LocalSpiDriver::spiDisableWriteProtection() {
@@ -237,6 +238,7 @@ bool LocalSpiDriver::detectChip(uint8_t &manuId, uint8_t &devId, uint8_t &capaId
 
 bool LocalSpiDriver::readFlash(uint32_t offset, uint32_t size, uint8_t *buffer) {
     spiFlashInit();
+    spiFlashWait(); // Wait before starting read
     printf("[READ] Starting read at 0x%X, size %u bytes...\n", offset, size);
     printf("Read: 0%%\n");
     fflush(stdout);
@@ -269,7 +271,7 @@ bool LocalSpiDriver::eraseFlash(uint32_t offset, uint32_t size) {
     fflush(stdout);
     while (pos < offset + size) {
         spiWriteEnable();
-        spiFlashWait();
+        // spiWriteEnable now includes a spiFlashWait
         regWrite8(REG_SOFTCS, 0x01);
         spiTransferByte(CMD_BE4K);
         spiTransferByte((pos >> 16) & 0xff);
@@ -300,6 +302,7 @@ bool LocalSpiDriver::writeFlash(uint32_t offset, uint32_t size, const uint8_t *b
     for (uint32_t i = 0; i < size; i++) {
         uint32_t pos = offset + i;
         spiWriteEnable();
+        // spiWriteEnable now includes a spiFlashWait
         regWrite8(REG_SOFTCS, 0x01);
         spiTransferByte(CMD_BYTE_WRITE);
         spiTransferByte((pos >> 16) & 0xff);
