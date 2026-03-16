@@ -20,6 +20,14 @@
         <translation>速率:</translation>
     </message>
     <message>
+        <source>Device:</source>
+        <translation>设备:</translation>
+    </message>
+    <message>
+        <source>Auto</source>
+        <translation>自动</translation>
+    </message>
+    <message>
         <source>Chip Model (Optional):</source>
         <translation>芯片型号 (可选):</translation>
     </message>

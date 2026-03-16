@@ -162,9 +162,20 @@ MainWindow::MainWindow(QWidget *parent)
     
     updateSystemStatus();
     fetchSupportedChips();
+    refreshDeviceList();
 }
 
 MainWindow::~MainWindow() { delete localSpi; delete ui; }
+
+void MainWindow::refreshDeviceList() {
+    ui->comboDevice->clear();
+    ui->comboDevice->addItem(tr("Auto"), "auto");
+    QDir devDir("/dev");
+    QStringList devices = devDir.entryList({"ttyACM*", "ttyUSB*", "spidev*"}, QDir::System);
+    for (const QString &dev : devices) {
+        ui->comboDevice->addItem("/dev/" + dev, "/dev/" + dev);
+    }
+}
 
 QString MainWindow::getFlashromPath() {
     QString localPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashrom");
@@ -507,7 +518,22 @@ void MainWindow::processFinished(int exitCode) {
         }
         else if (currentState == State::LocalRead) {
             QString tempFile = getWorkPath("flash_read.bin");
-            QFile f(tempFile); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); log(tr("Local read finished."), "green"); }
+            if (QFile::exists(tempFile)) {
+                if (!localSavePath.isEmpty()) {
+                    QFile::remove(localSavePath);
+                    if (QFile::copy(tempFile, localSavePath)) {
+                        log(tr("Flash backup saved to: %1").arg(localSavePath), "green");
+                    } else {
+                        log(tr("Failed to save backup to: %1").arg(localSavePath), "red");
+                    }
+                }
+                QFile f(tempFile); 
+                if (f.open(QIODevice::ReadOnly)) { 
+                    loadDataToEditor(f.readAll()); 
+                    f.close(); 
+                    log(tr("Local read finished and loaded into editor."), "green"); 
+                }
+            }
         }
         else if (currentState == State::LocalWrite) { log(tr("Local write successfully completed!"), "green"); }
         else if (currentState == State::Detecting) {
@@ -573,9 +599,29 @@ void MainWindow::log(const QString &msg, const QString &color) {
 }
 QString MainWindow::getProgrammerArgs(bool isEeprom) {
     if (isEeprom) return ui->comboEepromProg->currentData().toString();
-    QString base = ui->comboProgrammer->currentData().toString(); QString speed = ui->comboSpeed->currentData().toString();
-    if (base.contains("serprog")) { QString dev = "/dev/ttyACM0"; if (!QFileInfo("/dev/ttyACM0").exists()) dev = "/dev/ttyUSB0"; base = "serprog:dev=" + dev + ":4000000"; if (!speed.isEmpty()) base += ",spispeed=" + speed; }
-    else if (base.contains("linux_spi")) { base = "linux_spi:dev=/dev/spidev1.0"; if (!speed.isEmpty()) base += ",spispeed=" + speed; }
+    QString base = ui->comboProgrammer->currentData().toString();
+    QString speed = ui->comboSpeed->currentData().toString();
+    
+    QString device;
+    if (ui->comboDevice->currentData().toString() == "auto" || ui->comboDevice->currentText().isEmpty()) {
+        device = "";
+    } else {
+        device = ui->comboDevice->currentText();
+    }
+
+    if (base.contains("serprog")) {
+        if (device.isEmpty()) { device = "/dev/ttyACM0"; if (!QFileInfo("/dev/ttyACM0").exists()) device = "/dev/ttyUSB0"; }
+        base = "serprog:dev=" + device + ":4000000";
+        if (!speed.isEmpty()) base += ",spispeed=" + speed;
+    } else if (base.contains("linux_spi")) {
+        if (device.isEmpty()) device = "/dev/spidev1.0";
+        base = "linux_spi:dev=" + device;
+        if (!speed.isEmpty()) base += ",spispeed=" + speed;
+    } else if (base.contains("buspirate_spi")) {
+        if (device.isEmpty()) device = "/dev/ttyUSB0";
+        base = "buspirate_spi:dev=" + device;
+        if (!speed.isEmpty()) base += ",spispeed=" + speed;
+    }
     return base;
 }
 
@@ -594,10 +640,18 @@ void MainWindow::on_comboLang_currentIndexChanged(int index) {
 
 void MainWindow::on_btnLocalBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS File"), "", tr("Binary Files (*.bin *.rom);;All Files (*)"));
-    if (!fileName.isEmpty()) { localFile = fileName; ui->editLocalFile->setText(localFile); log(tr("Selected local file: %1").arg(localFile)); }
+    if (!fileName.isEmpty()) { 
+        localFile = fileName; 
+        ui->editLocalFile->setText(localFile); 
+        log(tr("Selected local file: %1").arg(localFile)); 
+        QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
+    }
 }
 void MainWindow::on_btnLocalDetect_clicked() { currentState = State::LocalDetect; if (!runLocalHelper({"detect"})) currentState = State::Idle; }
 void MainWindow::on_btnLocalRead_clicked() { 
+    localSavePath = QFileDialog::getSaveFileName(this, tr("Save BIOS Backup"), "", tr("Binary Files (*.bin *.rom);;All Files (*)"));
+    if (localSavePath.isEmpty()) return;
+
     currentState = State::LocalRead; 
     lockUi(true);
     ui->progressBar->setRange(0, 100);
@@ -631,7 +685,9 @@ void MainWindow::showLogContextMenu(const QPoint &pos) {
     connect(clearAction, &QAction::triggered, ui->textLog, &QTextEdit::clear);
     menu.exec(ui->textLog->mapToGlobal(pos));
 }
-void MainWindow::on_comboProgrammer_currentIndexChanged(int) {}
+void MainWindow::on_comboProgrammer_currentIndexChanged(int) {
+    refreshDeviceList();
+}
 
 void MainWindow::lockUi(bool locked) {
     ui->tabWidget->setEnabled(!locked);

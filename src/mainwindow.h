@@ -65,6 +65,7 @@ private:
     void lockUi(bool locked);
     void updateSystemStatus();
     void fetchSupportedChips();
+    void refreshDeviceList();
     QString getProgrammerArgs(bool isEeprom = false);
     QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");
@@ -73,7 +74,7 @@ private:
     QString getWorkPath(const QString &fileName);
     void loadDataToEditor(const QByteArray &data);
     QString prepareWriteFile();
-    
+
     // Internal state management
     enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase, LocalDetect, LocalRead, LocalWrite };
     State currentState = State::Idle;
@@ -81,9 +82,9 @@ private:
     QString accumulatedError;
     QString accumulatedOutput;
     QString sudoPassword;
-    
-    struct FlashInfo {
-        long flashSize = 0;
+    QString localSavePath;
+
+    struct FlashInfo {        long flashSize = 0;
         long fileSize = 0;
     };
     FlashInfo lastInfo;
