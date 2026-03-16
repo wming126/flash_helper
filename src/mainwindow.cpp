@@ -641,10 +641,14 @@ void MainWindow::on_btnBrowse_clicked() {
     if (!fileName.isEmpty()) { ui->lineFile->setText(fileName); currentFile = fileName; QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } } 
 }
 void MainWindow::log(const QString &msg, const QString &color) {
-    Q_UNUSED(color);
     if (msg.isEmpty()) return;
     ui->textLog->moveCursor(QTextCursor::End);
-    ui->textLog->insertPlainText(msg);
+    
+    // Use HTML to set color and ensure characters are properly escaped
+    QString escapedMsg = msg.toHtmlEscaped().replace("\n", "<br>");
+    QString html = QString("<font color=\"%1\">%2</font><br>").arg(color, escapedMsg);
+    
+    ui->textLog->insertHtml(html);
     ui->textLog->ensureCursorVisible();
 }
 QString MainWindow::getProgrammerArgs(bool isEeprom) {
