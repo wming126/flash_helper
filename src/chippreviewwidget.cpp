@@ -4,20 +4,28 @@
 #include <QMouseEvent>
 
 ChipPreviewWidget::ChipPreviewWidget(QWidget *parent) : QWidget(parent) {
-    setMinimumSize(220, 240);
+    setMinimumSize(120, 80);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     setToolTip(tr("Click to manually cycle package types (SOP8 -> SOP16 -> I2C -> WSON8)"));
+}
+
+QSize ChipPreviewWidget::sizeHint() const {
+    return QSize(160, 100);
 }
 
 void ChipPreviewWidget::setChipModel(const QString &model) {
     if (model == m_model) return;
     m_model = model;
+    PinoutType old = m_type;
     m_type = detectType(model);
+    if (old != m_type) emit typeChanged(m_type);
     update();
 }
 
 void ChipPreviewWidget::setPinoutType(PinoutType type) {
+    if (m_type == type) return;
     m_type = type;
+    emit typeChanged(m_type);
     update();
 }
 
@@ -26,6 +34,7 @@ void ChipPreviewWidget::mousePressEvent(QMouseEvent *event) {
         int next = (int)m_type + 1;
         if (next > (int)WSON8) next = (int)SPI_8PIN;
         m_type = (PinoutType)next;
+        emit typeChanged(m_type);
         update();
     }
 }
@@ -42,10 +51,6 @@ ChipPreviewWidget::PinoutType ChipPreviewWidget::detectType(const QString &model
         return SPI_8PIN;
     }
     return SPI_8PIN;
-}
-
-QSize ChipPreviewWidget::sizeHint() const {
-    return QSize(220, 240);
 }
 
 void ChipPreviewWidget::paintEvent(QPaintEvent *) {

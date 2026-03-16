@@ -66,6 +66,7 @@ private:
     void updateSystemStatus();
     void fetchSupportedChips();
     void refreshDeviceList();
+    void updateTabHeight();
     QString getProgrammerArgs(bool isEeprom = false);
     QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");

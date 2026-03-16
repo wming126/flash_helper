@@ -17,6 +17,8 @@ public:
     bool isReadOnly() const { return m_readOnly; }
     void setReadOnly(bool readOnly) { m_readOnly = readOnly; }
 
+    QSize sizeHint() const override;
+
     // Navigation
     void scrollToAddress(qint64 addr);
 

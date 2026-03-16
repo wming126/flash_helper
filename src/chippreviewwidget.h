@@ -19,11 +19,15 @@ public:
 
     void setChipModel(const QString &model);
     void setPinoutType(PinoutType type);
+    PinoutType currentType() const { return m_type; }
+    QSize sizeHint() const override;
+
+signals:
+    void typeChanged(PinoutType type);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
-    QSize sizeHint() const override;
 
 private:
     PinoutType m_type = SPI_8PIN;

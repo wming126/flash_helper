@@ -41,6 +41,15 @@ MainWindow::MainWindow(QWidget *parent)
     QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
     chipPreview = new ChipPreviewWidget(this);
     previewLayout->addWidget(chipPreview);
+    connect(chipPreview, &ChipPreviewWidget::typeChanged, this, [this](ChipPreviewWidget::PinoutType type) {
+        if (type == ChipPreviewWidget::SPI_16PIN) {
+            ui->tabWidget->setMaximumHeight(350);
+            previewGroup->setMaximumHeight(300);
+        } else {
+            ui->tabWidget->setMaximumHeight(260);
+            previewGroup->setMaximumHeight(200);
+        }
+    });
     
     QWidget *spiContent = new QWidget(this);
     QHBoxLayout *spiMainLayout = new QHBoxLayout(spiContent);
@@ -51,6 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
         else if (item->widget()) spiLeftLayout->addWidget(item->widget());
     }
     spiMainLayout->addLayout(spiLeftLayout, 2);
+    spiLeftLayout->addStretch();
     spiMainLayout->addWidget(previewGroup, 1);
     ui->verticalLayout_2->addWidget(spiContent);
 
@@ -63,6 +73,7 @@ MainWindow::MainWindow(QWidget *parent)
         else if (item->widget()) eepLeftLayout->addWidget(item->widget());
     }
     eepMainLayout->addLayout(eepLeftLayout, 2);
+    eepLeftLayout->addStretch();
     ui->verticalLayout_eeprom->addWidget(eepContent);
 
     ui->comboChip->setMinimumWidth(350);
@@ -86,6 +97,8 @@ MainWindow::MainWindow(QWidget *parent)
         bool isSettingsOrAbout = (index == 3 || index == 4);
         ui->editorContainer->setVisible(!isSettingsOrAbout);
         ui->textLog->setVisible(!isSettingsOrAbout);
+
+        updateTabHeight();
 
         // Progress bar management
         if (index != 2) ui->progressBar->hide();
@@ -163,6 +176,43 @@ MainWindow::MainWindow(QWidget *parent)
     updateSystemStatus();
     fetchSupportedChips();
     refreshDeviceList();
+
+    // Finalize UI layout: give more space to Hex Editor
+    ui->tabWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    ui->textLog->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    ui->editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    ui->splitterMain->setStretchFactor(0, 0); // tabWidget
+    ui->splitterMain->setStretchFactor(1, 10); // editorContainer - High priority
+    ui->splitterMain->setStretchFactor(2, 0); // textLog
+    
+    // Initial layout pass
+    updateTabHeight();
+    
+    // Use zero timer just to let the window system process events, or set immediately
+    QTimer::singleShot(0, this, [this]() {
+        ui->splitterMain->setSizes({240, 600, 100});
+    });
+}
+
+void MainWindow::updateTabHeight() {
+    int currentIndex = ui->tabWidget->currentIndex();
+    bool isSettingsOrAbout = (currentIndex == 3 || currentIndex == 4);
+    
+    if (isSettingsOrAbout) {
+        ui->tabWidget->setMaximumHeight(16777215); 
+        ui->tabWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    } else {
+        ui->tabWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        ChipPreviewWidget::PinoutType type = chipPreview->currentType();
+        if (type == ChipPreviewWidget::SPI_16PIN) {
+            ui->tabWidget->setMaximumHeight(350);
+            previewGroup->setMaximumHeight(300);
+        } else {
+            ui->tabWidget->setMaximumHeight(260);
+            previewGroup->setMaximumHeight(200);
+        }
+    }
 }
 
 MainWindow::~MainWindow() { delete localSpi; delete ui; }

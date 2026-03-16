@@ -47,6 +47,10 @@ void HexEditor::updateScrollBars() {
     horizontalScrollBar()->setRange(0, qMax(0, (m_addrWidth + m_gap + m_hexWidth + m_gap + m_asciiWidth + m_margin * 2) - viewport()->width()));
 }
 
+QSize HexEditor::sizeHint() const {
+    return QSize(600, 450); // Suggest a large height initially
+}
+
 void HexEditor::setData(const QByteArray &data) {
     m_data = data;
     m_cursorPos = 0;
