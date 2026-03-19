@@ -13,6 +13,8 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+class QLabel;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -62,6 +64,8 @@ private:
     QStringList supportedChips;
     class ChipPreviewWidget *chipPreview;
     class QGroupBox *previewGroup;
+    QLabel *aboutVersionLabel;
+    QLabel *aboutInstructionsLabel;
     LocalSpiDriver *localSpi;
 
     void lockUi(bool locked);
@@ -69,6 +73,8 @@ private:
     void fetchSupportedChips();
     void refreshDeviceList();
     void updateTabHeight();
+    void initializeLanguageSelection();
+    void updateDynamicTexts();
     QString getProgrammerArgs(bool isEeprom = false) const;
     QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");

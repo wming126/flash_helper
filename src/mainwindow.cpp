@@ -16,8 +16,10 @@
 #include <QCompleter>
 #include <QDebug>
 #include <QGroupBox>
+#include <QLabel>
 #include <QAbstractItemView>
 #include <QFileDevice>
+#include <QSettings>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -26,6 +28,8 @@ MainWindow::MainWindow(QWidget *parent)
     localSpi = new LocalSpiDriver();
     translator = new QTranslator(this);
     idleTimer = new QTimer(this);
+    aboutVersionLabel = nullptr;
+    aboutInstructionsLabel = nullptr;
     idleTimer->setSingleShot(true);
     connect(idleTimer, &QTimer::timeout, this, [this]() { ui->statusbar->showMessage(tr("Idle")); });
 
@@ -112,27 +116,19 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle(QString("FlashHelper %1").arg(displayVersion));
     ui->label_title_about->setText("FlashHelper");
 
-    QLabel *versionLabel = new QLabel(displayVersion, this);
-    versionLabel->setAlignment(Qt::AlignCenter);
-    QFont versionFont = versionLabel->font();
+    aboutVersionLabel = new QLabel(displayVersion, this);
+    aboutVersionLabel->setAlignment(Qt::AlignCenter);
+    QFont versionFont = aboutVersionLabel->font();
     versionFont.setPointSize(12);
     versionFont.setBold(true);
-    versionLabel->setFont(versionFont);
-    ui->verticalLayout_about->insertWidget(2, versionLabel);
+    aboutVersionLabel->setFont(versionFont);
+    ui->verticalLayout_about->insertWidget(2, aboutVersionLabel);
     
-    QLabel *instructions = new QLabel(this);
-    instructions->setWordWrap(true);
-    instructions->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    instructions->setTextFormat(Qt::RichText);
-    instructions->setText(tr("<h3>Tool Description</h3>"
-                             "<p>FlashHelper is a graphical front-end for flashrom, designed for BIOS and EEPROM flashing.</p>"
-                             "<h3>Usage Instructions</h3>"
-                             "<ul>"
-                             "<li><b>SPI/EEPROM:</b> Select programmer, chip model, and file, then click Read/Write.</li>"
-                             "<li><b>Local Flash:</b> Direct hardware access for Loongson platforms (requires root).</li>"
-                             "<li><b>System Setup:</b> Install udev rules to enable non-root access for USB programmers.</li>"
-                             "</ul>"));
-    ui->verticalLayout_about->insertWidget(4, instructions);
+    aboutInstructionsLabel = new QLabel(this);
+    aboutInstructionsLabel->setWordWrap(true);
+    aboutInstructionsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    aboutInstructionsLabel->setTextFormat(Qt::RichText);
+    ui->verticalLayout_about->insertWidget(4, aboutInstructionsLabel);
 
     connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
     connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
@@ -170,14 +166,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->comboEepromProg->addItem(tr("Serprog"), "serprog");
     ui->comboEepromProg->addItem(tr("Linux SPI"), "linux_spi");
 
-    ui->comboLang->blockSignals(true);
-    ui->comboLang->addItem("English", "en");
-    ui->comboLang->addItem("简体中文", "zh_CN");
-    QString locale = QLocale::system().name();
-    if (locale.startsWith("zh")) ui->comboLang->setCurrentIndex(1);
-    else ui->comboLang->setCurrentIndex(0);
-    ui->comboLang->blockSignals(false);
-    on_comboLang_currentIndexChanged(ui->comboLang->currentIndex());
+    initializeLanguageSelection();
 
     ui->textLog->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->textLog, &QWidget::customContextMenuRequested, this, &MainWindow::showLogContextMenu);
@@ -202,6 +191,39 @@ MainWindow::MainWindow(QWidget *parent)
     QTimer::singleShot(0, this, [this]() {
         ui->splitterMain->setSizes({240, 600, 100});
     });
+}
+
+void MainWindow::initializeLanguageSelection() {
+    ui->comboLang->blockSignals(true);
+    ui->comboLang->clear();
+    ui->comboLang->addItem("English", "en");
+    ui->comboLang->addItem("简体中文", "zh_CN");
+
+    QSettings settings;
+    QString language = settings.value("ui/language").toString();
+    if (language.isEmpty()) {
+        const QString locale = QLocale::system().name();
+        language = locale.startsWith("zh") ? "zh_CN" : "en";
+    }
+
+    const int languageIndex = ui->comboLang->findData(language);
+    ui->comboLang->setCurrentIndex(languageIndex >= 0 ? languageIndex : 0);
+    ui->comboLang->blockSignals(false);
+    on_comboLang_currentIndexChanged(ui->comboLang->currentIndex());
+}
+
+void MainWindow::updateDynamicTexts() {
+    ui->label_title_about->setText(tr("FlashHelper"));
+    if (aboutInstructionsLabel) {
+        aboutInstructionsLabel->setText(tr("<h3>Tool Description</h3>"
+                                           "<p>FlashHelper is a graphical front-end for flashrom, designed for BIOS and EEPROM flashing.</p>"
+                                           "<h3>Usage Instructions</h3>"
+                                           "<ul>"
+                                           "<li><b>SPI/EEPROM:</b> Select programmer, chip model, and file, then click Read/Write.</li>"
+                                           "<li><b>Local Flash:</b> Direct hardware access for Loongson platforms (requires root).</li>"
+                                           "<li><b>System Setup:</b> Install udev rules to enable non-root access for USB programmers.</li>"
+                                           "</ul>"));
+    }
 }
 
 void MainWindow::updateTabHeight() {
@@ -884,12 +906,16 @@ QString MainWindow::getProgrammerArgs(bool isEeprom) const {
 }
 
 void MainWindow::on_comboLang_currentIndexChanged(int index) {
-    QString lang = ui->comboLang->itemData(index).toString();
+    const QString lang = ui->comboLang->itemData(index).toString();
+    QSettings settings;
+    settings.setValue("ui/language", lang);
+
     qApp->removeTranslator(translator);
     bool loaded = false;
     if (lang == "zh_CN") loaded = translator->load(":/i18n/FlashHelper_zh_CN.qm");
     if (loaded) qApp->installTranslator(translator);
     ui->retranslateUi(this);
+    updateDynamicTexts();
     if (previewGroup) previewGroup->setTitle(tr("Chip Pinout Preview"));
     ui->statusbar->showMessage(tr("Idle"));
     updateSystemStatus();

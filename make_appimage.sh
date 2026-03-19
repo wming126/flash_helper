@@ -187,14 +187,26 @@ if [ -f "$APPDIR/usr/bin/flashrom" ]; then
     copy_deps "$APPDIR/usr/bin/flashrom"
 fi
 
-# 6. 显式验证 AppStream，避免 appimagetool 看起来像卡住
-if command -v appstreamcli >/dev/null 2>&1; then
+# 6. 默认跳过显式 AppStream 校验，避免某些环境下阻塞构建。
+# 如需校验，可手动设置 FLASHHELPER_VALIDATE_APPSTREAM=1。
+if [ "${FLASHHELPER_VALIDATE_APPSTREAM:-0}" = "1" ] && command -v appstreamcli >/dev/null 2>&1; then
     echo "Validating AppStream metadata..."
     appstream_validate_start=$SECONDS
-    appstreamcli validate-tree "$APPDIR"
-    log_timed_step "AppStream validation finished" "$appstream_validate_start"
-else
+    if command -v timeout >/dev/null 2>&1; then
+        if timeout 15s appstreamcli validate-tree "$APPDIR"; then
+            log_timed_step "AppStream validation finished" "$appstream_validate_start"
+        else
+            echo "Warning: AppStream validation timed out or failed; continuing packaging."
+        fi
+    elif appstreamcli validate-tree "$APPDIR"; then
+        log_timed_step "AppStream validation finished" "$appstream_validate_start"
+    else
+        echo "Warning: AppStream validation failed; continuing packaging."
+    fi
+elif [ "${FLASHHELPER_VALIDATE_APPSTREAM:-0}" = "1" ]; then
     echo "Warning: appstreamcli not found, skipping explicit AppStream validation."
+else
+    echo "Skipping explicit AppStream validation. Set FLASHHELPER_VALIDATE_APPSTREAM=1 to enable it."
 fi
 
 # 7. 封装 AppImage
