@@ -4,9 +4,12 @@ qtHaveModule(svg): QT += svg
 
 TARGET = FlashHelper
 TEMPLATE = app
+VERSION = $$system(cat $$shell_quote($$PWD/VERSION))
+isEmpty(VERSION): VERSION = 1.4.1
 
 # Setting C++ standard
 CONFIG += c++17
+DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 
 SOURCES += \
     src/main.cpp \

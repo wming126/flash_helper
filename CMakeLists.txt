@@ -1,34 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Get version from Git
-execute_process(
-    COMMAND git describe --tags --always --dirty --long
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    RESULT_VARIABLE GIT_RESULT
-    OUTPUT_VARIABLE GIT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# Fallback version if git fails
-if(NOT GIT_RESULT EQUAL 0 OR GIT_VERSION STREQUAL "")
-    set(GIT_VERSION "1.2.0")
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" APP_VERSION_RAW)
+string(STRIP "${APP_VERSION_RAW}" APP_VERSION_STRING)
+if(APP_VERSION_STRING STREQUAL "")
+    set(APP_VERSION_STRING "1.4.1")
 endif()
 
-# Extract numeric part for project()
-if(GIT_VERSION MATCHES "^v?([0-9]+\\.[0-9]+\\.[0-9]+)")
-    set(PROJECT_VERSION_NUMERIC ${CMAKE_MATCH_1})
-else()
-    set(PROJECT_VERSION_NUMERIC "1.2.0")
-endif()
-
-# Strip 'v' prefix from GIT_VERSION
-if(GIT_VERSION MATCHES "^v")
-    string(SUBSTRING "${GIT_VERSION}" 1 -1 GIT_VERSION_CLEAN)
-else()
-    set(GIT_VERSION_CLEAN "${GIT_VERSION}")
-endif()
-
-project(FlashHelper VERSION ${PROJECT_VERSION_NUMERIC} LANGUAGES CXX)
+project(FlashHelper VERSION ${APP_VERSION_STRING} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -91,6 +69,7 @@ set(PROJECT_SOURCES
 
 add_executable(FlashHelper ${PROJECT_SOURCES})
 target_include_directories(FlashHelper PRIVATE ${CMAKE_SOURCE_DIR})
+target_compile_definitions(FlashHelper PRIVATE APP_VERSION=\"${APP_VERSION_STRING}\")
 target_link_libraries(FlashHelper PRIVATE ${QT_LIBRARIES})
 
 # Build the helper (for root MMIO access)
@@ -121,7 +100,7 @@ endif()
 set(CPACK_PACKAGE_NAME "flashhelper")
 set(CPACK_PACKAGE_VENDOR "Robin")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "BIOS Flash Tool GUI (Bundled flashrom)")
-set(CPACK_PACKAGE_VERSION "${GIT_VERSION_CLEAN}")
+set(CPACK_PACKAGE_VERSION "${APP_VERSION_STRING}")
 set(CPACK_STRIP_FILES TRUE)
 
 # DEB specific

@@ -16,9 +16,9 @@
 #include <QTimer>
 #include <QCompleter>
 #include <QDebug>
-#include <QInputDialog>
 #include <QGroupBox>
 #include <QAbstractItemView>
+#include <QFileDevice>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -105,7 +105,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     // Populate About tab details
-    QString version = "v1.3.0"; // Should ideally come from a macro or build system
+    QString version = "v1.4.1";
 #ifdef APP_VERSION
     version = APP_VERSION;
 #endif
@@ -246,7 +246,7 @@ void MainWindow::updateSystemStatus() {
     else status = tr("Hardware Access: <font color='red'>Denied (Requires Root)</font>");
     
     ui->lblUdevStatus->setText(status);
-    ui->lblPolkitStatus->setText(QFile::exists("/etc/udev/rules.d/z60_flashrom.rules") ? tr("System Config: <font color='green'>Rules Installed</font>") : tr("System Config: <font color='red'>Not Configured</font>"));
+    ui->lblPolkitStatus->setText(QFile::exists("/etc/udev/rules.d/z60_flashrom.rules") ? tr("System Config: <font color='green'>Udev Rules Installed</font>") : tr("System Config: <font color='red'>Udev Rules Not Installed</font>"));
 }
 
 void MainWindow::fetchSupportedChips() {
@@ -297,49 +297,29 @@ void MainWindow::fetchSupportedChips() {
 }
 
 void MainWindow::on_btnInstallRules_clicked() {
-    QString udevContent = "# Flashrom Programmers\n"
-                          "# STM32 VSerprog\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"5740\", MODE:=\"0666\", GROUP=\"plugdev\"\n"
-                          "# CH341A\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"5512\", MODE:=\"0666\", GROUP=\"plugdev\"\n"
-                          "# FT2232\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6010\", MODE:=\"0666\", GROUP=\"plugdev\"\n"
-                          "# Dediprog\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"dada\", MODE:=\"0666\", GROUP=\"plugdev\"\n"
-                          "# STLINK-V3\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"374e\", MODE:=\"0666\", GROUP=\"plugdev\"\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"0483\", ATTRS{idProduct}==\"374f\", MODE:=\"0666\", GROUP=\"plugdev\"\n"
-                          "# PICkit 2\n"
-                          "SUBSYSTEMS==\"usb\", ATTRS{idVendor}==\"04d8\", ATTRS{idProduct}==\"0033\", MODE:=\"0666\", GROUP=\"plugdev\"\n\n"
-                          "# Generic ACM and USB Serial\n"
-                          "KERNEL==\"ttyACM*\", MODE:=\"0666\", GROUP=\"dialout\"\n"
-                          "KERNEL==\"ttyUSB*\", MODE:=\"0666\", GROUP=\"dialout\"\n"
-                          "# Linux SPI (spidev)\n"
-                          "KERNEL==\"spidev*\", MODE:=\"0666\", GROUP=\"plugdev\"\n";
-    QString polkitRule = "polkit.addRule(function(action, subject) {\n"
-                         "  if (action.id == \"com.robin.flashhelper.run-flashrom\" && (subject.isInGroup(\"plugdev\") || subject.isInGroup(\"dialout\"))) {\n"
-                         "    return polkit.Result.YES;\n"
-                         "  }\n"
-                         "});\n";
-    QString script = QString("echo \"%1\" | base64 -d > /etc/udev/rules.d/z60_flashrom.rules && "
-                             "echo \"%2\" | base64 -d > /etc/polkit-1/rules.d/10-flashrom.rules && "
-                             "udevadm control --reload-rules && udevadm trigger && "
-                             "groupadd -f plugdev && groupadd -f dialout && "
-                             "usermod -aG plugdev %3 && usermod -aG dialout %3")
-                     .arg(QString(udevContent.toUtf8().toBase64()), QString(polkitRule.toUtf8().toBase64()), qgetenv("USER"));
+    const QString helperPath = getHelperPath();
+    if (helperPath.isEmpty()) {
+        QMessageBox::warning(this, tr("Helper Missing"), tr("flashhelper-helper was not found."));
+        return;
+    }
 
-    if (QProcess::execute("pkexec", {"bash", "-c", script}) == 0) {
-        QMessageBox::information(this, tr("Rules Installed"), 
-            tr("Permission rules have been installed.\n\n"
-               "You have been added to 'plugdev' and 'dialout' groups.\n"
-               "Please LOG OUT and LOG IN again for changes to take effect."));
+    if (QProcess::execute("pkexec", {helperPath, "install-rules"}) == 0) {
+        QMessageBox::information(this, tr("Rules Installed"),
+            tr("Udev access rules have been installed.\n\n"
+               "Reconnect your programmer if it was already plugged in."));
     }
     QThread::msleep(500);
     updateSystemStatus();
 }
 
 void MainWindow::on_btnRemoveRules_clicked() {
-    QProcess::execute("pkexec", {"bash", "-c", "rm -f /etc/udev/rules.d/z60_flashrom.rules /etc/polkit-1/rules.d/10-flashrom.rules"});
+    const QString helperPath = getHelperPath();
+    if (helperPath.isEmpty()) {
+        QMessageBox::warning(this, tr("Helper Missing"), tr("flashhelper-helper was not found."));
+        return;
+    }
+
+    QProcess::execute("pkexec", {helperPath, "remove-rules"});
     updateSystemStatus();
 }
 
@@ -378,13 +358,16 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
 
         if (cmdToRun.contains("/.mount_")) {
             QString binaryName = QFileInfo(cmdToRun).fileName();
-            QString tempPath = QDir::tempPath() + "/" + binaryName + "_internal_" + qgetenv("USER");
-            if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
-                if (QFile::copy(cmdToRun, tempPath)) {
-                    QFile::setPermissions(tempPath, QFile::Permissions(0x7777));
-                    cmdToRun = tempPath;
+                QString tempPath = QDir::tempPath() + "/" + binaryName + "_internal_" + qgetenv("USER");
+                if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
+                    if (QFile::copy(cmdToRun, tempPath)) {
+                        QFile::setPermissions(tempPath,
+                                              QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+                                              QFileDevice::ReadGroup | QFileDevice::ExeGroup |
+                                              QFileDevice::ReadOther | QFileDevice::ExeOther);
+                        cmdToRun = tempPath;
+                    }
                 }
-            }
         }
         finalArgs[0] = cmdToRun;
     }
@@ -409,40 +392,42 @@ start_proc:
 }
 
 bool MainWindow::runLocalHelper(const QStringList &args) {
-    QString helperPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashhelper-helper");
-    if (!QFile::exists(helperPath)) helperPath = QDir::current().absoluteFilePath("flashhelper-helper");
-    if (!QFile::exists(helperPath)) helperPath = "./flashhelper-helper";
-    
-    log(tr("[Local Flash] Running: %1 %2\n").arg(helperPath, args.join(" ")), "cyan");
-    
-    if (helperPath.contains("/.mount_")) {
-        QString tempPath = QDir::tempPath() + "/flashhelper-helper_internal_" + qgetenv("USER");
-        if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
-            if (QFile::copy(helperPath, tempPath)) {
-                QFile::setPermissions(tempPath, QFile::Permissions(0x7777));
-                helperPath = tempPath;
-            }
-        }
+    QString helperPath = getHelperPath();
+    if (helperPath.isEmpty()) {
+        QMessageBox::warning(this, tr("Helper Missing"), tr("flashhelper-helper was not found."));
+        return false;
     }
 
-    bool ok;
-    QInputDialog dialog(this);
-    dialog.setWindowTitle(tr("Authorization"));
-    dialog.setLabelText(tr("Local SPI hardware access requires root privileges.\nPlease enter your password:"));
-    dialog.setTextEchoMode(QLineEdit::Password);
-    dialog.setOkButtonText(tr("OK"));
-    dialog.setCancelButtonText(tr("Cancel"));
-    dialog.setMinimumWidth(450); // Increased width
-    
-    ok = dialog.exec();
-    QString pass = dialog.textValue();
-    if (!ok || pass.isEmpty()) return false;
+    log(tr("[Local Flash] Running: %1 %2\n").arg(helperPath, args.join(" ")), "cyan");
 
     accumulatedOutput.clear();
     accumulatedError.clear();
-    process->start("sudo", QStringList() << "-S" << helperPath << args);
-    process->write(pass.toUtf8() + "\n");
+    process->start("pkexec", QStringList() << helperPath << args);
     return true;
+}
+
+QString MainWindow::getHelperPath() const {
+    QString helperPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("flashhelper-helper");
+    if (!QFile::exists(helperPath)) helperPath = QDir::current().absoluteFilePath("flashhelper-helper");
+    if (!QFile::exists(helperPath)) helperPath = "./flashhelper-helper";
+    if (!QFile::exists(helperPath)) return QString();
+
+    if (helperPath.contains("/.mount_")) {
+        const QString tempPath = QDir::tempPath() + "/flashhelper-helper_internal_" + qgetenv("USER");
+        if (!QFile::exists(tempPath) || QFile::remove(tempPath)) {
+            if (QFile::copy(helperPath, tempPath)) {
+                QFile::setPermissions(tempPath,
+                                      QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+                                      QFileDevice::ReadGroup | QFileDevice::ExeGroup |
+                                      QFileDevice::ReadOther | QFileDevice::ExeOther);
+                helperPath = tempPath;
+            }
+        } else {
+            helperPath = tempPath;
+        }
+    }
+
+    return helperPath;
 }
 
 void MainWindow::on_btnDetect_clicked() { currentState = State::Detecting; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); }
