@@ -17,6 +17,7 @@ SOURCES += \
     src/hexeditor.cpp \
     src/chippreviewwidget.cpp \
     src/localspidriver.cpp \
+    src/localflashutils.cpp \
     src/smartmerge.cpp
 
 HEADERS += \
@@ -24,6 +25,8 @@ HEADERS += \
     src/hexeditor.h \
     src/chippreviewwidget.h \
     src/localspidriver.h \
+    src/localflashutils.h \
+    src/localflashshared.h \
     src/smartmerge.h
 
 RESOURCES += \

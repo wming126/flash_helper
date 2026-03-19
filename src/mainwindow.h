@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QTranslator>
 #include "localspidriver.h"
+#include "localflashutils.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -73,6 +74,10 @@ private:
     void fetchSupportedChips();
     void refreshDeviceList();
     void updateTabHeight();
+    void setupPreviewPanels();
+    void setupAboutPage();
+    void setupProcessConnections();
+    void setupProgrammerOptions();
     void initializeLanguageSelection();
     void updateDynamicTexts();
     QString getProgrammerArgs(bool isEeprom = false) const;
@@ -90,6 +95,7 @@ private:
     QString prepareWriteFile();
     bool startFlashromOperation(State state, const QStringList &args, bool lockTabs = false);
     void beginBusyOperation(const QString &statusMessage, bool lockTabs = false);
+    void finishBusyOperation(bool startIdleStatusTimer);
     void abortBusyOperation();
     void clearSmartWriteArtifacts();
     void cleanupWorkDir();
@@ -106,7 +112,6 @@ private:
     bool handleSuccessfulLocalRead();
     bool handleSuccessfulLocalWrite();
     bool handleFailedLocalOperation(int exitCode);
-    QString localFailureMessage(int exitCode) const;
     void cleanupLocalReadArtifact();
     void handleSuccessfulDetect();
     bool handleSmartReadFailure();

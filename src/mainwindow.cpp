@@ -40,132 +40,16 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->hide();
     ui->progressBar->setTextVisible(true);
     ui->progressBar->setFormat("%p%");
-    
-    previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
-    QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
-    chipPreview = new ChipPreviewWidget(this);
-    previewLayout->addWidget(chipPreview);
-    connect(chipPreview, &ChipPreviewWidget::typeChanged, this, [this](ChipPreviewWidget::PinoutType type) {
-        if (type == ChipPreviewWidget::SPI_16PIN) {
-            ui->tabWidget->setMaximumHeight(350);
-            previewGroup->setMaximumHeight(300);
-        } else {
-            ui->tabWidget->setMaximumHeight(260);
-            previewGroup->setMaximumHeight(200);
-        }
-    });
-    
-    QWidget *spiContent = new QWidget(this);
-    QHBoxLayout *spiMainLayout = new QHBoxLayout(spiContent);
-    QVBoxLayout *spiLeftLayout = new QVBoxLayout();
-    while (ui->verticalLayout_2->count() > 0) {
-        QLayoutItem *item = ui->verticalLayout_2->takeAt(0);
-        if (item->layout()) spiLeftLayout->addLayout(item->layout());
-        else if (item->widget()) spiLeftLayout->addWidget(item->widget());
-    }
-    spiMainLayout->addLayout(spiLeftLayout, 2);
-    spiLeftLayout->addStretch();
-    spiMainLayout->addWidget(previewGroup, 1);
-    ui->verticalLayout_2->addWidget(spiContent);
-
-    QWidget *eepContent = new QWidget(this);
-    QHBoxLayout *eepMainLayout = new QHBoxLayout(eepContent);
-    QVBoxLayout *eepLeftLayout = new QVBoxLayout();
-    while (ui->verticalLayout_eeprom->count() > 0) {
-        QLayoutItem *item = ui->verticalLayout_eeprom->takeAt(0);
-        if (item->layout()) eepLeftLayout->addLayout(item->layout());
-        else if (item->widget()) eepLeftLayout->addWidget(item->widget());
-    }
-    eepMainLayout->addLayout(eepLeftLayout, 2);
-    eepLeftLayout->addStretch();
-    ui->verticalLayout_eeprom->addWidget(eepContent);
+    setupPreviewPanels();
 
     ui->comboChip->setMinimumWidth(350);
     ui->comboChip->setMaxVisibleItems(20);
     ui->comboChip->view()->setMinimumWidth(400);
     ui->comboEepromChip->setMinimumWidth(350);
     ui->comboEepromChip->view()->setMinimumWidth(400);
-
-    connect(ui->comboChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        chipPreview->setChipModel(text);
-    });
-    connect(ui->comboEepromChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        chipPreview->setChipModel(text);
-    });
-    
-    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this, spiMainLayout, eepMainLayout](int index) {
-        if (index == 0) spiMainLayout->addWidget(this->previewGroup);
-        else if (index == 1) eepMainLayout->addWidget(this->previewGroup);
-        
-        // Hide editor and log on "System Setup" (index 3) and "About" (index 4) tabs
-        bool isSettingsOrAbout = (index == 3 || index == 4);
-        ui->editorContainer->setVisible(!isSettingsOrAbout);
-        ui->textLog->setVisible(!isSettingsOrAbout);
-
-        updateTabHeight();
-
-        // Progress bar management
-        if (index != 2) ui->progressBar->hide();
-    });
-
-    // Populate About tab details
-    QString version = "1.4.1";
-#ifdef APP_VERSION
-    version = APP_VERSION;
-#endif
-    const QString displayVersion = version.startsWith('v') ? version : QString("v%1").arg(version);
-    setWindowTitle(QString("FlashHelper %1").arg(displayVersion));
-    ui->label_title_about->setText("FlashHelper");
-
-    aboutVersionLabel = new QLabel(displayVersion, this);
-    aboutVersionLabel->setAlignment(Qt::AlignCenter);
-    QFont versionFont = aboutVersionLabel->font();
-    versionFont.setPointSize(12);
-    versionFont.setBold(true);
-    aboutVersionLabel->setFont(versionFont);
-    ui->verticalLayout_about->insertWidget(2, aboutVersionLabel);
-    
-    aboutInstructionsLabel = new QLabel(this);
-    aboutInstructionsLabel->setWordWrap(true);
-    aboutInstructionsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    aboutInstructionsLabel->setTextFormat(Qt::RichText);
-    ui->verticalLayout_about->insertWidget(4, aboutInstructionsLabel);
-
-    connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
-    connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), 
-            this, &MainWindow::processFinished);
-
-    ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
-    ui->comboProgrammer->addItem(tr("CH341A SPI"), "ch341a_spi");
-    ui->comboProgrammer->addItem(tr("FT2232 SPI"), "ft2232_spi");
-    ui->comboProgrammer->addItem(tr("Bus Pirate SPI"), "buspirate_spi:dev=/dev/ttyUSB0");
-    ui->comboProgrammer->addItem(tr("Dediprog"), "dediprog");
-    ui->comboProgrammer->addItem(tr("STLINK-V3 SPI"), "stlinkv3_spi");
-    ui->comboProgrammer->addItem(tr("PICkit 2 SPI"), "pickit2_spi");
-    ui->comboProgrammer->addItem(tr("DirtyJTAG SPI"), "dirtyjtag_spi");
-    ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
-    ui->comboProgrammer->addItem(tr("Dummy (Test only)"), "dummy");
-
-    QString arch = QSysInfo::currentCpuArchitecture();
-    if (arch.contains("loongarch") || arch.contains("la64")) {
-        ui->comboProgrammer->addItem(tr("Internal (Loongson SPI)"), "internal");
-    }
-    ui->comboProgrammer->setCurrentIndex(0);
-
-    ui->comboSpeed->addItem(tr("Default"), "");
-    ui->comboSpeed->addItem("36 MHz", "36000000");
-    ui->comboSpeed->addItem("20 MHz", "20000000");
-    ui->comboSpeed->addItem("16 MHz", "16000000");
-    ui->comboSpeed->addItem("8 MHz", "8000000");
-    ui->comboSpeed->addItem("4 MHz", "4000000");
-    ui->comboSpeed->addItem("2 MHz", "2000000");
-    ui->comboSpeed->addItem("1 MHz", "1000000");
-
-    ui->comboEepromProg->addItem(tr("CH341A SPI (I2C Patched)"), "ch341a_spi");
-    ui->comboEepromProg->addItem(tr("Bus Pirate"), "buspirate_spi");
-    ui->comboEepromProg->addItem(tr("Serprog"), "serprog");
-    ui->comboEepromProg->addItem(tr("Linux SPI"), "linux_spi");
+    setupAboutPage();
+    setupProcessConnections();
+    setupProgrammerOptions();
 
     initializeLanguageSelection();
 
@@ -192,6 +76,140 @@ MainWindow::MainWindow(QWidget *parent)
     QTimer::singleShot(0, this, [this]() {
         ui->splitterMain->setSizes({240, 600, 100});
     });
+}
+
+void MainWindow::setupPreviewPanels() {
+    previewGroup = new QGroupBox(tr("Chip Pinout Preview"), this);
+    QVBoxLayout *previewLayout = new QVBoxLayout(previewGroup);
+    chipPreview = new ChipPreviewWidget(this);
+    previewLayout->addWidget(chipPreview);
+    connect(chipPreview, &ChipPreviewWidget::typeChanged, this, [this](ChipPreviewWidget::PinoutType type) {
+        if (type == ChipPreviewWidget::SPI_16PIN) {
+            ui->tabWidget->setMaximumHeight(350);
+            previewGroup->setMaximumHeight(300);
+        } else {
+            ui->tabWidget->setMaximumHeight(260);
+            previewGroup->setMaximumHeight(200);
+        }
+    });
+
+    QWidget *spiContent = new QWidget(this);
+    QHBoxLayout *spiMainLayout = new QHBoxLayout(spiContent);
+    QVBoxLayout *spiLeftLayout = new QVBoxLayout();
+    while (ui->verticalLayout_2->count() > 0) {
+        QLayoutItem *item = ui->verticalLayout_2->takeAt(0);
+        if (item->layout()) {
+            spiLeftLayout->addLayout(item->layout());
+        } else if (item->widget()) {
+            spiLeftLayout->addWidget(item->widget());
+        }
+    }
+    spiMainLayout->addLayout(spiLeftLayout, 2);
+    spiLeftLayout->addStretch();
+    spiMainLayout->addWidget(previewGroup, 1);
+    ui->verticalLayout_2->addWidget(spiContent);
+
+    QWidget *eepromContent = new QWidget(this);
+    QHBoxLayout *eepromMainLayout = new QHBoxLayout(eepromContent);
+    QVBoxLayout *eepromLeftLayout = new QVBoxLayout();
+    while (ui->verticalLayout_eeprom->count() > 0) {
+        QLayoutItem *item = ui->verticalLayout_eeprom->takeAt(0);
+        if (item->layout()) {
+            eepromLeftLayout->addLayout(item->layout());
+        } else if (item->widget()) {
+            eepromLeftLayout->addWidget(item->widget());
+        }
+    }
+    eepromMainLayout->addLayout(eepromLeftLayout, 2);
+    eepromLeftLayout->addStretch();
+    ui->verticalLayout_eeprom->addWidget(eepromContent);
+
+    connect(ui->comboChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        chipPreview->setChipModel(text);
+    });
+    connect(ui->comboEepromChip, &QComboBox::currentTextChanged, this, [this](const QString &text) {
+        chipPreview->setChipModel(text);
+    });
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this, spiMainLayout, eepromMainLayout](int index) {
+        if (index == 0) {
+            spiMainLayout->addWidget(previewGroup);
+        } else if (index == 1) {
+            eepromMainLayout->addWidget(previewGroup);
+        }
+
+        const bool isSettingsOrAbout = (index == 3 || index == 4);
+        ui->editorContainer->setVisible(!isSettingsOrAbout);
+        ui->textLog->setVisible(!isSettingsOrAbout);
+
+        updateTabHeight();
+        if (index != 2) {
+            ui->progressBar->hide();
+        }
+    });
+}
+
+void MainWindow::setupAboutPage() {
+    QString version = "unknown";
+#ifdef APP_VERSION
+    version = APP_VERSION;
+#endif
+    const QString displayVersion = version.startsWith('v') ? version : QString("v%1").arg(version);
+    setWindowTitle(QString("FlashHelper %1").arg(displayVersion));
+    ui->label_title_about->setText("FlashHelper");
+
+    aboutVersionLabel = new QLabel(displayVersion, this);
+    aboutVersionLabel->setAlignment(Qt::AlignCenter);
+    QFont versionFont = aboutVersionLabel->font();
+    versionFont.setPointSize(12);
+    versionFont.setBold(true);
+    aboutVersionLabel->setFont(versionFont);
+    ui->verticalLayout_about->insertWidget(2, aboutVersionLabel);
+
+    aboutInstructionsLabel = new QLabel(this);
+    aboutInstructionsLabel->setWordWrap(true);
+    aboutInstructionsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    aboutInstructionsLabel->setTextFormat(Qt::RichText);
+    ui->verticalLayout_about->insertWidget(4, aboutInstructionsLabel);
+}
+
+void MainWindow::setupProcessConnections() {
+    connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
+    connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &MainWindow::processFinished);
+}
+
+void MainWindow::setupProgrammerOptions() {
+    ui->comboProgrammer->addItem(tr("Serprog (STM32)"), "serprog:dev=/dev/ttyACM0:4000000");
+    ui->comboProgrammer->addItem(tr("CH341A SPI"), "ch341a_spi");
+    ui->comboProgrammer->addItem(tr("FT2232 SPI"), "ft2232_spi");
+    ui->comboProgrammer->addItem(tr("Bus Pirate SPI"), "buspirate_spi:dev=/dev/ttyUSB0");
+    ui->comboProgrammer->addItem(tr("Dediprog"), "dediprog");
+    ui->comboProgrammer->addItem(tr("STLINK-V3 SPI"), "stlinkv3_spi");
+    ui->comboProgrammer->addItem(tr("PICkit 2 SPI"), "pickit2_spi");
+    ui->comboProgrammer->addItem(tr("DirtyJTAG SPI"), "dirtyjtag_spi");
+    ui->comboProgrammer->addItem(tr("Linux SPI"), "linux_spi:dev=/dev/spidev1.0");
+    ui->comboProgrammer->addItem(tr("Dummy (Test only)"), "dummy");
+
+    const QString arch = QSysInfo::currentCpuArchitecture();
+    if (arch.contains("loongarch") || arch.contains("la64")) {
+        ui->comboProgrammer->addItem(tr("Internal (Loongson SPI)"), "internal");
+    }
+    ui->comboProgrammer->setCurrentIndex(0);
+
+    ui->comboSpeed->addItem(tr("Default"), "");
+    ui->comboSpeed->addItem("36 MHz", "36000000");
+    ui->comboSpeed->addItem("20 MHz", "20000000");
+    ui->comboSpeed->addItem("16 MHz", "16000000");
+    ui->comboSpeed->addItem("8 MHz", "8000000");
+    ui->comboSpeed->addItem("4 MHz", "4000000");
+    ui->comboSpeed->addItem("2 MHz", "2000000");
+    ui->comboSpeed->addItem("1 MHz", "1000000");
+
+    ui->comboEepromProg->addItem(tr("CH341A SPI (I2C Patched)"), "ch341a_spi");
+    ui->comboEepromProg->addItem(tr("Bus Pirate"), "buspirate_spi");
+    ui->comboEepromProg->addItem(tr("Serprog"), "serprog");
+    ui->comboEepromProg->addItem(tr("Linux SPI"), "linux_spi");
 }
 
 void MainWindow::initializeLanguageSelection() {
@@ -722,16 +740,14 @@ bool MainWindow::handleFailedProcess() {
 bool MainWindow::handleSuccessfulLocalDetect() {
     if (currentState != State::LocalDetect) return false;
 
-    QRegularExpression re("SUCCESS: ([0-9A-F]+) ([0-9A-F]+) ([0-9A-F]+)");
-    QRegularExpressionMatch match = re.match(accumulatedOutput);
-    if (!match.hasMatch()) return true;
+    QString info;
+    qint64 flashSize = 0;
+    if (!LocalFlash::parseDetectOutput(accumulatedOutput, &info, &flashSize)) return true;
 
-    const QString info = QString("ID: %1 %2 %3").arg(match.captured(1), match.captured(2), match.captured(3));
     ui->labelLocalChip->setText(info);
     log(tr("Detected Local Chip: %1").arg(info), "green");
-    const uint8_t c = match.captured(3).toInt(nullptr, 16);
-    if (c >= 0x13 && c <= 0x21) {
-        localSpi->setFlashSize(1 << c);
+    if (flashSize > 0) {
+        localSpi->setFlashSize(static_cast<uint32_t>(flashSize));
         log(tr("Flash Size: %1 MB").arg(localSpi->getFlashSize() / 1024 / 1024));
     }
     return true;
@@ -781,7 +797,7 @@ bool MainWindow::handleFailedLocalOperation(int exitCode) {
         return false;
     }
 
-    const QString message = localFailureMessage(exitCode);
+    const QString message = LocalFlash::failureMessage(exitCode);
     if (!message.isEmpty()) {
         log(message, "red");
         ui->statusbar->showMessage(message, 7000);
@@ -789,37 +805,6 @@ bool MainWindow::handleFailedLocalOperation(int exitCode) {
 
     if (currentState == State::LocalRead) cleanupLocalReadArtifact();
     return true;
-}
-
-QString MainWindow::localFailureMessage(int exitCode) const {
-    switch (exitCode) {
-        case 2:
-            return tr("Failed to initialize the local SPI driver. Check root access and platform support.");
-        case 3:
-            return tr("No local SPI flash chip was detected.");
-        case 4:
-            return tr("Failed to open the selected local image file.");
-        case 9:
-            return tr("Failed to read the local SPI flash contents.");
-        case 10:
-            return tr("Failed to open the temporary backup file for writing.");
-        case 11:
-            return tr("Failed to save the temporary backup data.");
-        case 12:
-            return tr("Failed to read the selected local image file.");
-        case 13:
-            return tr("Failed to erase the local SPI flash.");
-        case 14:
-            return tr("Failed to write the local SPI flash.");
-        case 15:
-            return tr("The helper received an invalid expected flash size.");
-        case 16:
-            return tr("The selected local image is empty.");
-        case 17:
-            return tr("The selected local image size does not match the detected flash size.");
-        default:
-            return tr("Local flash operation failed.");
-    }
 }
 
 void MainWindow::cleanupLocalReadArtifact() {
@@ -894,15 +879,12 @@ bool MainWindow::handleSuccessfulProcess() {
 }
 
 void MainWindow::processFinished(int exitCode) {
-    lockUi(false);
     if (exitCode != 0) {
         if (handleFailedProcess()) return;
     } else {
         if (handleSuccessfulProcess()) return;
     }
-    currentState = State::Idle; 
-    ui->progressBar->hide();
-    if (idleTimer) idleTimer->start(5000);
+    finishBusyOperation(true);
 }
 
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
@@ -945,10 +927,17 @@ void MainWindow::beginBusyOperation(const QString &statusMessage, bool lockTabs)
     ui->statusbar->showMessage(statusMessage);
 }
 
-void MainWindow::abortBusyOperation() {
+void MainWindow::finishBusyOperation(bool startIdleStatusTimer) {
     currentState = State::Idle;
     lockUi(false);
     ui->progressBar->hide();
+    if (startIdleStatusTimer && idleTimer) {
+        idleTimer->start(5000);
+    }
+}
+
+void MainWindow::abortBusyOperation() {
+    finishBusyOperation(false);
 }
 
 bool MainWindow::startFlashromOperation(State state, const QStringList &args, bool lockTabs) {
@@ -1080,32 +1069,16 @@ void MainWindow::on_btnLocalRead_clicked() {
     }
 }
 void MainWindow::on_btnLocalWrite_clicked() { 
-    if (localFile.isEmpty()) { QMessageBox::warning(this, tr("Error"), tr("Please select a file first.")); return; }
-    const qint64 flashSize = localSpi->getFlashSize();
-    if (flashSize <= 0) {
-        QMessageBox::warning(this, tr("Flash Size Unknown"),
-                             tr("Unable to determine local flash size. Detect the chip first."));
+    const LocalFlash::ValidationResult validation =
+        LocalFlash::validateImageFile(localFile, localSpi->getFlashSize());
+    if (!validation.ok) {
+        QMessageBox::warning(this, validation.title, validation.message);
         return;
     }
 
-    QFileInfo fileInfo(localFile);
-    if (!fileInfo.exists() || fileInfo.size() <= 0) {
-        QMessageBox::warning(this, tr("Error"), tr("The selected local file is missing or empty."));
-        return;
-    }
-    if (fileInfo.size() != flashSize) {
-        QMessageBox::warning(
-            this,
-            tr("Image Size Mismatch"),
-            tr("The selected image is %1 bytes, but the detected flash size is %2 bytes.\n\n"
-               "Local flashing requires an exact size match.")
-                .arg(fileInfo.size())
-                .arg(flashSize));
-        return;
-    }
-    currentState = State::LocalWrite; 
+    currentState = State::LocalWrite;
     beginBusyOperation(tr("Starting local erase & write..."), true);
-    if (!runLocalHelper({"write", localFile, QString::number(flashSize)})) {
+    if (!runLocalHelper({"write", localFile, QString::number(localSpi->getFlashSize())})) {
         abortBusyOperation();
     }
 }

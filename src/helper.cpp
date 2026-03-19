@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <unistd.h>
 #include "localspidriver.h"
+#include "localflashshared.h"
 
 namespace {
 
@@ -70,7 +71,7 @@ void printUsage(const char* prog) {
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         printUsage(argv[0]);
-        return 1;
+        return static_cast<int>(LocalFlash::HelperExitCode::InvalidUsage);
     }
 
     LocalSpiDriver driver;
@@ -79,7 +80,7 @@ int main(int argc, char* argv[]) {
     if (cmd == "detect") {
         if (!driver.init()) {
             std::cerr << "Failed to init SPI driver. Check root permissions.\n";
-            return 2;
+            return static_cast<int>(LocalFlash::HelperExitCode::InitFailed);
         }
         uint8_t m, d, c;
         if (driver.detectChip(m, d, c)) {
@@ -87,7 +88,7 @@ int main(int argc, char* argv[]) {
         } else {
             std::cerr << "No chip detected.\n";
             driver.release();
-            return 3;
+            return static_cast<int>(LocalFlash::HelperExitCode::DetectFailed);
         }
         driver.release();
         return 0;
@@ -97,24 +98,24 @@ int main(int argc, char* argv[]) {
         const char* filename = argv[2];
         uint32_t size = std::stoul(argv[3]);
 
-        if (!driver.init()) return 2;
+        if (!driver.init()) return static_cast<int>(LocalFlash::HelperExitCode::InitFailed);
         std::vector<uint8_t> buffer(size);
         if (!driver.readFlash(0, size, buffer.data())) {
             std::cerr << "Failed to read flash contents.\n";
             driver.release();
-            return 9;
+            return static_cast<int>(LocalFlash::HelperExitCode::ReadFailed);
         }
 
         std::ofstream ofs(filename, std::ios::binary);
         if (!ofs.is_open()) {
             std::cerr << "Failed to open output file: " << filename << "\n";
             driver.release();
-            return 10;
+            return static_cast<int>(LocalFlash::HelperExitCode::OutputOpenFailed);
         }
         if (!ofs.write((char*)buffer.data(), size)) {
             std::cerr << "Failed to write output file: " << filename << "\n";
             driver.release();
-            return 11;
+            return static_cast<int>(LocalFlash::HelperExitCode::OutputWriteFailed);
         }
         std::cout << "SUCCESS" << std::endl;
         driver.release();
@@ -129,36 +130,36 @@ int main(int argc, char* argv[]) {
                 expectedSize = std::stoll(argv[3]);
             } catch (...) {
                 std::cerr << "Invalid expected flash size.\n";
-                return 15;
+                return static_cast<int>(LocalFlash::HelperExitCode::InvalidExpectedSize);
             }
         }
         
         std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
-        if (!ifs.is_open()) return 4;
+        if (!ifs.is_open()) return static_cast<int>(LocalFlash::HelperExitCode::InputOpenFailed);
         std::streamsize size = ifs.tellg();
         if (size <= 0) {
             std::cerr << "Input image is empty.\n";
-            return 16;
+            return static_cast<int>(LocalFlash::HelperExitCode::EmptyImage);
         }
         if (expectedSize > 0 && size != expectedSize) {
             std::cerr << "Input image size " << size << " does not match flash size " << expectedSize << ".\n";
-            return 17;
+            return static_cast<int>(LocalFlash::HelperExitCode::ImageSizeMismatch);
         }
         ifs.seekg(0, std::ios::beg);
         std::vector<uint8_t> buffer(size);
         ifs.read((char*)buffer.data(), size);
-        if (!ifs) return 12;
+        if (!ifs) return static_cast<int>(LocalFlash::HelperExitCode::InputReadFailed);
 
-        if (!driver.init()) return 2;
+        if (!driver.init()) return static_cast<int>(LocalFlash::HelperExitCode::InitFailed);
         if (!driver.eraseFlash(0, size)) {
             std::cerr << "Failed to erase flash.\n";
             driver.release();
-            return 13;
+            return static_cast<int>(LocalFlash::HelperExitCode::EraseFailed);
         }
         if (!driver.writeFlash(0, size, buffer.data())) {
             std::cerr << "Failed to write flash.\n";
             driver.release();
-            return 14;
+            return static_cast<int>(LocalFlash::HelperExitCode::WriteFailed);
         }
         std::cout << "SUCCESS" << std::endl;
         driver.release();
@@ -166,11 +167,11 @@ int main(int argc, char* argv[]) {
     }
     else if (cmd == "install-rules") {
         if (!writeFile(kUdevRulesPath, kUdevRulesContent)) {
-            return 5;
+            return static_cast<int>(LocalFlash::HelperExitCode::InstallRulesFailed);
         }
         if (!reloadUdevRules()) {
             std::cerr << "udev rules installed, but failed to reload them.\n";
-            return 6;
+            return static_cast<int>(LocalFlash::HelperExitCode::ReloadRulesAfterInstallFailed);
         }
         std::cout << "SUCCESS" << std::endl;
         return 0;
@@ -178,15 +179,15 @@ int main(int argc, char* argv[]) {
     else if (cmd == "remove-rules") {
         if (unlink(kUdevRulesPath) != 0 && errno != ENOENT) {
             std::cerr << "Failed to remove " << kUdevRulesPath << ": " << std::strerror(errno) << "\n";
-            return 7;
+            return static_cast<int>(LocalFlash::HelperExitCode::RemoveRulesFailed);
         }
         if (!reloadUdevRules()) {
             std::cerr << "udev rules removed, but failed to reload them.\n";
-            return 8;
+            return static_cast<int>(LocalFlash::HelperExitCode::ReloadRulesAfterRemoveFailed);
         }
         std::cout << "SUCCESS" << std::endl;
         return 0;
     }
 
-    return 1;
+    return static_cast<int>(LocalFlash::HelperExitCode::InvalidUsage);
 }
