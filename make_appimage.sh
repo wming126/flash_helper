@@ -5,10 +5,14 @@ set -euo pipefail
 copy_deps() {
     local target="$1"
     local exclude_regex='libc\.so|libm\.so|libpthread\.so|libdl\.so|librt\.so|libgcc_s\.so|libstdc\+\+\.so'
+    local deps=""
 
     [ -f "$target" ] || return 0
 
-    ldd "$target" | awk '/=> \// {print $3}' | grep -vE "$exclude_regex" | sort -u | while read -r dep; do
+    deps="$(ldd "$target" | awk '/=> \// {print $3}' | grep -vE "$exclude_regex" || true)"
+    [ -n "$deps" ] || return 0
+
+    printf '%s\n' "$deps" | sort -u | while read -r dep; do
         cp -v -L --update=none "$dep" "$APPDIR/usr/lib/" || true
     done
 }

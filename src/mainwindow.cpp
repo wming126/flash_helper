@@ -105,11 +105,21 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     // Populate About tab details
-    QString version = "v1.4.1";
+    QString version = "1.4.1";
 #ifdef APP_VERSION
     version = APP_VERSION;
 #endif
-    ui->label_title_about->setText(QString("FlashHelper %1").arg(version));
+    const QString displayVersion = version.startsWith('v') ? version : QString("v%1").arg(version);
+    setWindowTitle(QString("FlashHelper %1").arg(displayVersion));
+    ui->label_title_about->setText("FlashHelper");
+
+    QLabel *versionLabel = new QLabel(displayVersion, this);
+    versionLabel->setAlignment(Qt::AlignCenter);
+    QFont versionFont = versionLabel->font();
+    versionFont.setPointSize(12);
+    versionFont.setBold(true);
+    versionLabel->setFont(versionFont);
+    ui->verticalLayout_about->insertWidget(2, versionLabel);
     
     QLabel *instructions = new QLabel(this);
     instructions->setWordWrap(true);
@@ -570,7 +580,13 @@ void MainWindow::processFinished(int exitCode) {
                 }
             }
         }
-        else if (currentState == State::LocalWrite) { log(tr("Local write successfully completed!"), "green"); }
+        else if (currentState == State::LocalWrite) {
+            if (accumulatedOutput.contains("SUCCESS")) log(tr("Local write successfully completed!"), "green");
+            else {
+                log(tr("Local write finished without a success marker."), "yellow");
+                ui->statusbar->showMessage(tr("Local write result is uncertain"), 5000);
+            }
+        }
         else if (currentState == State::Detecting) {
             QRegularExpression re("Found [^ ]+ flash chip \"([^\"]+)\"");
             QRegularExpressionMatch match = re.match(accumulatedError);

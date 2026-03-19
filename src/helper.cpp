@@ -99,12 +99,24 @@ int main(int argc, char* argv[]) {
 
         if (!driver.init()) return 2;
         std::vector<uint8_t> buffer(size);
-        if (driver.readFlash(0, size, buffer.data())) {
-            std::ofstream ofs(filename, std::ios::binary);
-            if (ofs.write((char*)buffer.data(), size)) {
-                std::cout << "SUCCESS" << std::endl;
-            }
+        if (!driver.readFlash(0, size, buffer.data())) {
+            std::cerr << "Failed to read flash contents.\n";
+            driver.release();
+            return 9;
         }
+
+        std::ofstream ofs(filename, std::ios::binary);
+        if (!ofs.is_open()) {
+            std::cerr << "Failed to open output file: " << filename << "\n";
+            driver.release();
+            return 10;
+        }
+        if (!ofs.write((char*)buffer.data(), size)) {
+            std::cerr << "Failed to write output file: " << filename << "\n";
+            driver.release();
+            return 11;
+        }
+        std::cout << "SUCCESS" << std::endl;
         driver.release();
         return 0;
     }
@@ -118,12 +130,20 @@ int main(int argc, char* argv[]) {
         ifs.seekg(0, std::ios::beg);
         std::vector<uint8_t> buffer(size);
         ifs.read((char*)buffer.data(), size);
+        if (!ifs) return 12;
 
         if (!driver.init()) return 2;
-        driver.eraseFlash(0, size);
-        if (driver.writeFlash(0, size, buffer.data())) {
-            std::cout << "SUCCESS" << std::endl;
+        if (!driver.eraseFlash(0, size)) {
+            std::cerr << "Failed to erase flash.\n";
+            driver.release();
+            return 13;
         }
+        if (!driver.writeFlash(0, size, buffer.data())) {
+            std::cerr << "Failed to write flash.\n";
+            driver.release();
+            return 14;
+        }
+        std::cout << "SUCCESS" << std::endl;
         driver.release();
         return 0;
     }
