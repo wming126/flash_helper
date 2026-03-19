@@ -2,6 +2,13 @@
 
 set -euo pipefail
 
+log_timed_step() {
+    local message="$1"
+    local start_time="$2"
+    local elapsed=$((SECONDS - start_time))
+    echo "$message (${elapsed}s)"
+}
+
 copy_deps() {
     local target="$1"
     local exclude_regex='libc\.so|libm\.so|libpthread\.so|libdl\.so|librt\.so|libgcc_s\.so|libstdc\+\+\.so'
@@ -96,14 +103,29 @@ rm -f flashrom
 # 尝试使用 Meson 构建 (现代推荐方式)
 if command -v meson &> /dev/null && command -v ninja &> /dev/null; then
     echo "Using Meson to build flashrom..."
-    meson setup build -Dprogrammer=all || meson setup build --reconfigure -Dprogrammer=all
+    flashrom_build_start=$SECONDS
+    meson setup build \
+        -Dprogrammer=all \
+        -Dtests=disabled \
+        -Ddocumentation=disabled \
+        -Dman-pages=disabled \
+        -Dbash_completion=disabled \
+        || meson setup build --reconfigure \
+            -Dprogrammer=all \
+            -Dtests=disabled \
+            -Ddocumentation=disabled \
+            -Dman-pages=disabled \
+            -Dbash_completion=disabled
     ninja -C build
+    log_timed_step "flashrom build finished" "$flashrom_build_start"
     FLASHROM_BIN=$(realpath build/flashrom)
 # 回退到 Makefile 构建
 elif [ -f "Makefile" ]; then
     echo "Using Makefile to build flashrom..."
+    flashrom_build_start=$SECONDS
     make clean
     make -j$(nproc)
+    log_timed_step "flashrom build finished" "$flashrom_build_start"
     FLASHROM_BIN=$(realpath flashrom)
 else
     echo "Error: Cannot find build system for flashrom source."
@@ -165,10 +187,22 @@ if [ -f "$APPDIR/usr/bin/flashrom" ]; then
     copy_deps "$APPDIR/usr/bin/flashrom"
 fi
 
-# 6. 封装 AppImage
+# 6. 显式验证 AppStream，避免 appimagetool 看起来像卡住
+if command -v appstreamcli >/dev/null 2>&1; then
+    echo "Validating AppStream metadata..."
+    appstream_validate_start=$SECONDS
+    appstreamcli validate-tree "$APPDIR"
+    log_timed_step "AppStream validation finished" "$appstream_validate_start"
+else
+    echo "Warning: appstreamcli not found, skipping explicit AppStream validation."
+fi
+
+# 7. 封装 AppImage
 echo "Generating AppImage..."
 export ARCH=$ARCH
 rm -f "FlashHelper-${ARCH}.AppImage"
-./$APPIMAGETOOL_BIN $APPDIR FlashHelper-${ARCH}.AppImage
+appimage_build_start=$SECONDS
+./$APPIMAGETOOL_BIN --no-appstream $APPDIR FlashHelper-${ARCH}.AppImage
+log_timed_step "AppImage generation finished" "$appimage_build_start"
 
 echo "Done! FlashHelper-${ARCH}.AppImage has been generated with FRESHLY BUILT flashrom."
