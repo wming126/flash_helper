@@ -1,5 +1,78 @@
 #!/bin/bash
 
+set -euo pipefail
+
+copy_deps() {
+    local target="$1"
+    local exclude_regex='libc\.so|libm\.so|libpthread\.so|libdl\.so|librt\.so|libgcc_s\.so|libstdc\+\+\.so'
+
+    [ -f "$target" ] || return 0
+
+    ldd "$target" | awk '/=> \// {print $3}' | grep -vE "$exclude_regex" | sort -u | while read -r dep; do
+        cp -v -L --update=none "$dep" "$APPDIR/usr/lib/" || true
+    done
+}
+
+find_qt_plugins_path() {
+    local plugins_path=""
+
+    if command -v qmake6 >/dev/null 2>&1; then
+        plugins_path="$(qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null | cut -d: -f2- || true)"
+    fi
+
+    if [ -z "$plugins_path" ] && command -v qmake >/dev/null 2>&1; then
+        plugins_path="$(qmake -query QT_INSTALL_PLUGINS 2>/dev/null | cut -d: -f2- || true)"
+    fi
+
+    if [ -z "$plugins_path" ] && [ -d "/usr/lib/$(uname -m)-linux-gnu/qt6/plugins" ]; then
+        plugins_path="/usr/lib/$(uname -m)-linux-gnu/qt6/plugins"
+    elif [ -z "$plugins_path" ] && [ -d "/usr/lib/qt6/plugins" ]; then
+        plugins_path="/usr/lib/qt6/plugins"
+    elif [ -z "$plugins_path" ] && [ -d "/usr/lib/$(uname -m)-linux-gnu/qt5/plugins" ]; then
+        plugins_path="/usr/lib/$(uname -m)-linux-gnu/qt5/plugins"
+    elif [ -z "$plugins_path" ] && [ -d "/usr/lib/qt5/plugins" ]; then
+        plugins_path="/usr/lib/qt5/plugins"
+    fi
+
+    printf '%s\n' "$plugins_path"
+}
+
+deploy_qt_plugin() {
+    local plugins_root="$1"
+    local relative_path="$2"
+    local src="$plugins_root/$relative_path"
+    local dest_dir="$APPDIR/usr/plugins/$(dirname "$relative_path")"
+
+    [ -f "$src" ] || return 0
+
+    mkdir -p "$dest_dir"
+    cp -v -L "$src" "$dest_dir/"
+    copy_deps "$dest_dir/$(basename "$relative_path")"
+}
+
+deploy_minimal_qt_runtime() {
+    local plugins_root
+    plugins_root="$(find_qt_plugins_path)"
+
+    if [ -z "$plugins_root" ] || [ ! -d "$plugins_root" ]; then
+        echo "Warning: Qt plugins path not found. AppImage may miss runtime plugins."
+        return 0
+    fi
+
+    echo "Deploying minimal Qt runtime from: $plugins_root"
+
+    deploy_qt_plugin "$plugins_root" "platforms/libqxcb.so"
+    deploy_qt_plugin "$plugins_root" "imageformats/libqsvg.so"
+    deploy_qt_plugin "$plugins_root" "iconengines/libqsvgicon.so"
+
+    mkdir -p "$APPDIR/usr/bin"
+    cat > "$APPDIR/usr/bin/qt.conf" <<'EOF'
+[Paths]
+Plugins = ../plugins
+Libraries = ../lib
+EOF
+}
+
 # 1. 确保 FlashHelper 已经编译 (由用户在外部完成或在此处编译)
 if [ ! -f "build/FlashHelper" ]; then
     echo "FlashHelper binary not found in build/. Attempting to build..."
@@ -41,6 +114,7 @@ mkdir -p $APPDIR/usr/bin
 mkdir -p $APPDIR/usr/lib
 mkdir -p $APPDIR/usr/share/icons/hicolor/scalable/apps
 mkdir -p $APPDIR/usr/share/applications
+mkdir -p $APPDIR/usr/share/metainfo
 
 # 4. 复制基础文件
 cp build/FlashHelper $APPDIR/usr/bin/
@@ -51,8 +125,9 @@ fi
 cp -v -L "$FLASHROM_BIN" "$APPDIR/usr/bin/flashrom"
 chmod +x $APPDIR/usr/bin/flashrom
 cp res/flashhelper.svg $APPDIR/usr/share/icons/hicolor/scalable/apps/
-cp deploy/flashhelper.desktop $APPDIR/usr/share/applications/
-cp deploy/flashhelper.desktop $APPDIR/
+cp deploy/com.robin.flashhelper.desktop $APPDIR/usr/share/applications/
+cp deploy/com.robin.flashhelper.appdata.xml $APPDIR/usr/share/metainfo/
+cp deploy/com.robin.flashhelper.desktop $APPDIR/
 cp res/flashhelper.svg $APPDIR/
 (cd $APPDIR && ln -sf usr/bin/FlashHelper AppRun)
 
@@ -70,56 +145,26 @@ fi
 
 # 5. 部署依赖
 if [ -f "$LINUXDEPLOY_BIN" ]; then
-    echo "Using linuxdeploy for deployment..."
-    if [ -f "/usr/bin/qmake6" ]; then export QMAKE="/usr/bin/qmake6"; else export QMAKE="/usr/bin/qmake"; fi
-    ./$LINUXDEPLOY_BIN --appdir $APPDIR --plugin qt --desktop-file deploy/flashhelper.desktop --icon-file res/flashhelper.svg
+    echo "Using linuxdeploy for base dependency deployment..."
+    ./$LINUXDEPLOY_BIN --appdir "$APPDIR" --desktop-file deploy/com.robin.flashhelper.desktop --icon-file res/flashhelper.svg
 else
     echo "linuxdeploy not found, performing manual deployment..."
-    ldd $APPDIR/usr/bin/FlashHelper | grep '=> /' | grep -vE 'libc.so|libm.so|libpthread.so|libdl.so|librt.so|libgcc_s.so|libstdc++.so|libGL.so|libX11.so' | awk '{print $3}' | xargs -I {} cp -vn {} $APPDIR/usr/lib/
-    mkdir -p $APPDIR/usr/plugins/platforms
-    if [ -d "/usr/lib/$(uname -m)-linux-gnu/qt5/plugins/platforms" ]; then
-        cp /usr/lib/$(uname -m)-linux-gnu/qt5/plugins/platforms/libqxcb.so $APPDIR/usr/plugins/platforms/
-    elif [ -d "/usr/lib/qt/plugins/platforms" ]; then
-        cp /usr/lib/qt/plugins/platforms/libqxcb.so $APPDIR/usr/plugins/platforms/
-    fi
-    if [ -f "$APPDIR/usr/plugins/platforms/libqxcb.so" ]; then
-        ldd $APPDIR/usr/plugins/platforms/libqxcb.so | grep '=> /' | grep -vE 'libc.so|libm.so|libpthread.so|libdl.so|librt.so|libgcc_s.so|libstdc++.so' | awk '{print $3}' | xargs -I {} cp -vn {} $APPDIR/usr/lib/
-    fi
-
-    # Deploy SVG plugins manually
-    mkdir -p $APPDIR/usr/plugins/imageformats
-    mkdir -p $APPDIR/usr/plugins/iconengines
-    QT_PLUGIN_PATH=""
-    if [ -d "/usr/lib/$(uname -m)-linux-gnu/qt5/plugins" ]; then
-        QT_PLUGIN_PATH="/usr/lib/$(uname -m)-linux-gnu/qt5/plugins"
-    elif [ -d "/usr/lib/qt/plugins" ]; then
-        QT_PLUGIN_PATH="/usr/lib/qt/plugins"
-    elif [ -d "/usr/lib/qt5/plugins" ]; then
-        QT_PLUGIN_PATH="/usr/lib/qt5/plugins"
-    fi
-
-    if [ -n "$QT_PLUGIN_PATH" ]; then
-        cp -v $QT_PLUGIN_PATH/imageformats/libqsvg.so $APPDIR/usr/plugins/imageformats/ 2>/dev/null || true
-        cp -v $QT_PLUGIN_PATH/iconengines/libqsvgicon.so $APPDIR/usr/plugins/iconengines/ 2>/dev/null || true
-        
-        # Copy dependencies for SVG plugins
-        if [ -f "$APPDIR/usr/plugins/imageformats/libqsvg.so" ]; then
-            ldd $APPDIR/usr/plugins/imageformats/libqsvg.so | grep '=> /' | grep -vE 'libc.so|libm.so|libpthread.so|libdl.so|librt.so|libgcc_s.so|libstdc++.so' | awk '{print $3}' | xargs -I {} cp -vn {} $APPDIR/usr/lib/
-        fi
-    fi
-
-    echo -e "[Paths]\nPlugins = ../plugins\nLibraries = ../lib" > $APPDIR/usr/bin/qt.conf
+    copy_deps "$APPDIR/usr/bin/FlashHelper"
+    copy_deps "$APPDIR/usr/bin/flashhelper-helper"
 fi
+
+deploy_minimal_qt_runtime
 
 # 提取并验证 flashrom 的核心依赖
 if [ -f "$APPDIR/usr/bin/flashrom" ]; then
     echo "Extracting flashrom dependencies..."
-    ldd "$APPDIR/usr/bin/flashrom" | grep '=> /' | grep -vE 'libc.so|libm.so|libpthread.so|libdl.so|librt.so|libgcc_s.so|libstdc++.so' | awk '{print $3}' | xargs -I {} cp -vn {} $APPDIR/usr/lib/
+    copy_deps "$APPDIR/usr/bin/flashrom"
 fi
 
 # 6. 封装 AppImage
 echo "Generating AppImage..."
 export ARCH=$ARCH
+rm -f "FlashHelper-${ARCH}.AppImage"
 ./$APPIMAGETOOL_BIN $APPDIR FlashHelper-${ARCH}.AppImage
 
 echo "Done! FlashHelper-${ARCH}.AppImage has been generated with FRESHLY BUILT flashrom."

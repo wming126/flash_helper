@@ -5,4 +5,4 @@ Comment=BIOS Flashing Tool GUI
 Exec=FlashHelper
 Icon=flashhelper
 Terminal=false
-Categories=System;Utility;
+Categories=Utility;

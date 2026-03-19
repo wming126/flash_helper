@@ -121,10 +121,13 @@ include(CPack)
 # Replace hardcoded paths in desktop file during installation if needed, 
 # but better to have a clean desktop file or handle it differently.
 # For now, install it to the standard location relative to CMAKE_INSTALL_PREFIX.
-install(FILES deploy/flashhelper.desktop DESTINATION share/applications)
+install(FILES deploy/com.robin.flashhelper.desktop DESTINATION share/applications)
 
 # 5. Install icon
 install(FILES res/flashhelper.svg DESTINATION share/icons/hicolor/scalable/apps)
 
 # 6. Install Polkit policy
 install(FILES deploy/com.robin.flashhelper.policy DESTINATION share/polkit-1/actions)
+
+# 7. Install AppStream metadata
+install(FILES deploy/com.robin.flashhelper.appdata.xml DESTINATION share/metainfo)

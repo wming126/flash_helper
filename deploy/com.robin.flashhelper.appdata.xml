@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.robin.flashhelper</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-only</project_license>
+  <name>FlashHelper</name>
+  <summary>Graphical BIOS and EEPROM flashing utility</summary>
+  <description>
+    <p>
+      FlashHelper is a Qt-based graphical frontend for flashrom that helps read,
+      write, erase, and inspect BIOS or EEPROM firmware images.
+    </p>
+    <p>
+      It includes support for common external programmers and a privileged helper
+      for Loongson local SPI access.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.robin.flashhelper.desktop</launchable>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://github.com</url>
+  <developer id="com.robin">
+    <name>Robin</name>
+  </developer>
+  <provides>
+    <binary>FlashHelper</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>
