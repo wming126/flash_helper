@@ -16,11 +16,14 @@ QT_END_NAMESPACE
 
 class QLabel;
 
+#include "flashoperationcontroller.h"
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
+    using State = FlashOperationController::State;
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
@@ -32,8 +35,7 @@ private slots:
     void on_btnErase_clicked();
     void on_btnInstallRules_clicked();
     void on_btnRemoveRules_clicked();
-    void readProcessOutput();
-    void processFinished(int exitCode);
+    void processFinished(int exitCode, State finishedState);
     void showLogContextMenu(const QPoint &pos);
     void on_comboProgrammer_currentIndexChanged(int index);
     void on_btnEepromRead_clicked();
@@ -53,10 +55,8 @@ protected:
     void closeEvent(QCloseEvent *event) override;
 
 private:
-    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase, LocalDetect, LocalRead, LocalWrite };
-
     Ui::MainWindow *ui;
-    QProcess *process;
+    FlashOperationController *flashController;
     QTranslator *translator;
     QTimer *idleTimer;
     QString currentFile;
@@ -68,6 +68,7 @@ private:
     QLabel *aboutVersionLabel;
     QLabel *aboutInstructionsLabel;
     LocalSpiDriver *localSpi;
+    class LocalFlashManager *localFlashManager;
 
     void lockUi(bool locked);
     void updateSystemStatus();
@@ -76,15 +77,14 @@ private:
     void updateTabHeight();
     void setupPreviewPanels();
     void setupAboutPage();
-    void setupProcessConnections();
     void setupProgrammerOptions();
     void initializeLanguageSelection();
     void updateDynamicTexts();
     QString getProgrammerArgs(bool isEeprom = false) const;
     QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");
-    void runCommand(const QString &cmd, const QStringList &args);
-    bool runLocalHelper(const QStringList &args);
+    void runCommand(State state, const QString &cmd, const QStringList &args);
+    bool runLocalHelper(State state, const QStringList &args);
     QString getWorkPath(const QString &fileName);
     QString ensureWorkDir();
     QString getHelperPath() const;
@@ -94,7 +94,7 @@ private:
                                const QString &errorTitle, const QString &errorMessage);
     QString prepareWriteFile();
     bool startFlashromOperation(State state, const QStringList &args, bool lockTabs = false);
-    void beginBusyOperation(const QString &statusMessage, bool lockTabs = false);
+    void beginBusyOperation(const QString &statusMessage, bool lockTabs = false, bool showProgress = false);
     void finishBusyOperation(bool startIdleStatusTimer);
     void abortBusyOperation();
     void clearSmartWriteArtifacts();
@@ -104,14 +104,10 @@ private:
     bool canRunFlashromDirectly(const QString &programPath) const;
     QString preparePrivilegedExecutable(QString executablePath) const;
     QString statusMessageForState(State state) const;
-    bool retryOperationWithDetectedChip(const QString &combinedOutput);
+    bool retryOperationWithDetectedChip(const QString &combinedOutput, State finishedState);
     QStringList buildRetryArgsForState(State state, const QString &chipName);
-    bool handleFailedProcess();
-    bool handleSuccessfulProcess();
-    bool handleSuccessfulLocalDetect();
-    bool handleSuccessfulLocalRead();
-    bool handleSuccessfulLocalWrite();
-    bool handleFailedLocalOperation(int exitCode);
+    bool handleFailedProcess(int exitCode, State finishedState);
+    bool handleSuccessfulProcess(State finishedState);
     void cleanupLocalReadArtifact();
     void handleSuccessfulDetect();
     bool handleSmartReadFailure();
@@ -119,10 +115,9 @@ private:
     void startSmartMergeWrite();
     void loadReadResultIntoEditor();
 
-    State currentState = State::Idle;
+    State currentState() const { return flashController->currentState(); }
+
     QStringList detectedChips;
-    QString accumulatedError;
-    QString accumulatedOutput;
     QString localSavePath;
     QString workDirPath;
     bool smartWritePending = false;

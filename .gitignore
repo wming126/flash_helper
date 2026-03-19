@@ -1,4 +1,7 @@
 build/
+build_check/
+build_qmake/
+release/
 *.AppImage
 AppDir/
 *.pro.user

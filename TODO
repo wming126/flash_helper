@@ -1,0 +1,28 @@
+# FlashHelper Optimization TODO
+
+## Completed (v1.5.0)
+
+- **P0 - Reliability and Safety**
+  - [x] Add unit tests for `SmartMerge::preparePartialWrite`
+  - [x] Add unit tests for local flash helpers
+  - [x] Harden local flash detect flow: warning for unknown IDs and blocking invalid operations.
+
+- **P1 - Architecture Cleanup**
+  - [x] Split `MainWindow` execution logic into `FlashOperationController`.
+  - [x] Move local flash UI flow (detect/read/write orchestration) into `LocalFlashManager`.
+  - [x] Decouple UI from process management and state transitions.
+
+- **P1 - Build and Release Consistency**
+  - [x] CMake is now the single source of truth for all builds.
+  - [x] Removed legacy qmake `.pro` file.
+  - [x] Added GitHub Actions CI for build and test validation.
+
+- **P2 - Developer Experience**
+  - [x] Added `docs/ARCHITECTURE.md` explaining module boundaries and smart write flow.
+  - [x] Added `CONTRIBUTING.md` with build/test/package instructions.
+  - [x] Added pre-release checklist.
+
+## Future P3 - Optimization
+- [ ] Implement a more granular progress bar by parsing raw flashrom output (currently 0% / 100% or sparse updates).
+- [ ] Add support for "Verifying" step in the UI progress.
+- [ ] Improve Hex Editor performance for very large (64MB+) BIOS files.

@@ -69,6 +69,10 @@ set(PROJECT_SOURCES
     src/localflashshared.h
     src/smartmerge.cpp
     src/smartmerge.h
+    src/flashoperationcontroller.cpp
+    src/flashoperationcontroller.h
+    src/localflashmanager.cpp
+    src/localflashmanager.h
     res/resources.qrc
 )
 
@@ -76,6 +80,10 @@ add_executable(FlashHelper ${PROJECT_SOURCES})
 target_include_directories(FlashHelper PRIVATE ${CMAKE_SOURCE_DIR})
 target_compile_definitions(FlashHelper PRIVATE APP_VERSION=\"${APP_VERSION_STRING}\")
 target_link_libraries(FlashHelper PRIVATE ${QT_LIBRARIES})
+
+# Enable Testing
+enable_testing()
+add_subdirectory(tests)
 
 # Build the helper (for root MMIO access)
 add_executable(flashhelper-helper 

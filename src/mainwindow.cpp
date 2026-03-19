@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include "chippreviewwidget.h"
 #include "smartmerge.h"
+#include "localflashmanager.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QCloseEvent>
@@ -27,6 +28,63 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     localSpi = new LocalSpiDriver();
+    flashController = new FlashOperationController(this);
+    localFlashManager = new LocalFlashManager(flashController, localSpi, this);
+
+    // Flash Controller connections
+    connect(flashController, &FlashOperationController::logMessage, this, &MainWindow::log);
+    connect(flashController, &FlashOperationController::finished, this, [this](int exitCode, QProcess::ExitStatus, FlashOperationController::State finishedState) {
+        processFinished(exitCode, finishedState);
+    });
+    connect(flashController, &FlashOperationController::outputReceived, this, [this](const QString &output) {
+        if (output.isEmpty()) return;
+        
+        QRegularExpression progRe("(\\d+)%");
+        auto matches = progRe.globalMatch(output);
+        QString lastMatch;
+        while (matches.hasNext()) { lastMatch = matches.next().captured(1); }
+        if (!lastMatch.isEmpty()) { ui->progressBar->setValue(lastMatch.toInt()); }
+
+        if (output.trimmed().size() > 4 || output.contains('\n')) { log(output, "white"); }
+    });
+    connect(flashController, &FlashOperationController::errorReceived, this, [this](const QString &error) {
+        if (error.isEmpty()) return;
+
+        QRegularExpression progRe("(\\d+)%");
+        auto matches = progRe.globalMatch(error);
+        QString lastMatch;
+        while (matches.hasNext()) { lastMatch = matches.next().captured(1); }
+        if (!lastMatch.isEmpty()) { ui->progressBar->setValue(lastMatch.toInt()); }
+
+        if (error.trimmed().size() > 4 || error.contains('\n')) { log(error, "yellow"); }
+
+        if (currentState() == State::Writing && (error.contains("expected size") || error.contains("doesn't match"))) {
+            handleSmartWrite(error);
+        }
+    });
+
+    // Local Flash Manager connections
+    connect(localFlashManager, &LocalFlashManager::logMessage, this, &MainWindow::log);
+    connect(localFlashManager, &LocalFlashManager::statusMessage, this, [this](const QString &msg, int timeout) {
+        ui->statusbar->showMessage(msg, timeout);
+    });
+    connect(localFlashManager, &LocalFlashManager::chipDetected, this, [this](const QString &info, qint64 size) {
+        ui->labelLocalChip->setText(info);
+        log(tr("Detected Local Chip: %1").arg(info), "green");
+        log(tr("Flash Size: %1 MB").arg(size / 1024 / 1024));
+        ui->btnLocalRead->setEnabled(true);
+        ui->btnLocalWrite->setEnabled(true);
+    });
+    connect(localFlashManager, &LocalFlashManager::detectUnknownSize, this, [this](const QString &info) {
+        ui->labelLocalChip->setText(info);
+        QMessageBox::warning(this, tr("Flash Size Unknown"),
+                             tr("The chip ID was detected (%1), but its capacity code is unknown.\n\n"
+                                "Local read/write operations are disabled for safety.")
+                                 .arg(info));
+        ui->btnLocalRead->setEnabled(false);
+        ui->btnLocalWrite->setEnabled(false);
+    });
+
     translator = new QTranslator(this);
     idleTimer = new QTimer(this);
     aboutVersionLabel = nullptr;
@@ -36,7 +94,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     setWindowIcon(QIcon(":/flashhelper.svg"));
-    process = new QProcess(this);
+    
     ui->progressBar->hide();
     ui->progressBar->setTextVisible(true);
     ui->progressBar->setFormat("%p%");
@@ -48,7 +106,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->comboEepromChip->setMinimumWidth(350);
     ui->comboEepromChip->view()->setMinimumWidth(400);
     setupAboutPage();
-    setupProcessConnections();
     setupProgrammerOptions();
 
     initializeLanguageSelection();
@@ -170,13 +227,6 @@ void MainWindow::setupAboutPage() {
     aboutInstructionsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     aboutInstructionsLabel->setTextFormat(Qt::RichText);
     ui->verticalLayout_about->insertWidget(4, aboutInstructionsLabel);
-}
-
-void MainWindow::setupProcessConnections() {
-    connect(process, &QProcess::readyReadStandardOutput, this, &MainWindow::readProcessOutput);
-    connect(process, &QProcess::readyReadStandardError, this, &MainWindow::readProcessOutput);
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, &MainWindow::processFinished);
 }
 
 void MainWindow::setupProgrammerOptions() {
@@ -318,8 +368,8 @@ void MainWindow::cleanupWorkDir() {
 }
 
 void MainWindow::maybeResetSmartWriteArtifacts() {
-    if (currentState != State::SmartRead && currentState != State::SmartWrite &&
-        !(currentState == State::Reading && smartWritePending)) {
+    if (currentState() != State::SmartRead && currentState() != State::SmartWrite &&
+        !(currentState() == State::Reading && smartWritePending)) {
         clearSmartWriteArtifacts();
     }
 }
@@ -327,7 +377,7 @@ void MainWindow::maybeResetSmartWriteArtifacts() {
 QStringList MainWindow::applySelectedChipToArgs(QStringList args) const {
     const QString currentChip = ui->comboChip->currentText();
     const bool isAuto = (currentChip == tr("Auto Detect") || currentChip.isEmpty());
-    if (isAuto || currentState == State::Detecting || args.contains("-c")) return args;
+    if (isAuto || currentState() == State::Detecting || args.contains("-c")) return args;
 
     const int programmerIndex = args.indexOf("-p");
     if (programmerIndex != -1 && programmerIndex + 1 < args.size()) {
@@ -342,7 +392,10 @@ bool MainWindow::canRunFlashromDirectly(const QString &programPath) const {
 
     const QString programmerArgs = getProgrammerArgs();
     const bool hasSerialAccess = QFileInfo("/dev/ttyACM0").isWritable() || QFileInfo("/dev/ttyUSB0").isWritable();
-    return programmerArgs.contains("serprog") && hasSerialAccess;
+    const bool hasMemAccess = QFileInfo("/dev/mem").isReadable();
+    
+    // Allow direct access for serprog if serial port is writable, or if /dev/mem is accessible
+    return (programmerArgs.contains("serprog") && hasSerialAccess) || hasMemAccess;
 }
 
 QString MainWindow::preparePrivilegedExecutable(QString executablePath) const {
@@ -486,12 +539,10 @@ void MainWindow::on_btnRemoveRules_clicked() {
     updateSystemStatus();
 }
 
-void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
+void MainWindow::runCommand(State state, const QString &cmd, const QStringList &args) {
     if (idleTimer) idleTimer->stop();
     QStringList finalArgs = applySelectedChipToArgs(args);
     QString finalCmd = cmd;
-    accumulatedError.clear();
-    accumulatedOutput.clear();
     maybeResetSmartWriteArtifacts();
 
     if (cmd == "pkexec" && !finalArgs.isEmpty()) {
@@ -508,23 +559,19 @@ void MainWindow::runCommand(const QString &cmd, const QStringList &args) {
         }
     }
 
-    log(tr("Final Command: %1 %2").arg(finalCmd, finalArgs.join(" ")), "gray");
-    ui->statusbar->showMessage(statusMessageForState(currentState));
-    process->start(finalCmd, finalArgs);
+    ui->statusbar->showMessage(statusMessageForState(state));
+    log(tr("Command: %1 %2").arg(finalCmd, finalArgs.join(" ")), "gray");
+    flashController->startFlashromOperation(state, finalCmd, finalArgs);
 }
 
-bool MainWindow::runLocalHelper(const QStringList &args) {
+bool MainWindow::runLocalHelper(State state, const QStringList &args) {
     QString helperPath = getHelperPath();
     if (helperPath.isEmpty()) {
         QMessageBox::warning(this, tr("Helper Missing"), tr("flashhelper-helper was not found."));
         return false;
     }
 
-    log(tr("[Local Flash] Running: %1 %2\n").arg(helperPath, args.join(" ")), "cyan");
-
-    accumulatedOutput.clear();
-    accumulatedError.clear();
-    process->start("pkexec", QStringList() << helperPath << args);
+    flashController->startLocalHelperOperation(state, helperPath, args);
     return true;
 }
 
@@ -605,35 +652,6 @@ void MainWindow::on_btnEepromErase_clicked() {
     }
 }
 
-void MainWindow::readProcessOutput() {
-    QString output = process->readAllStandardOutput();
-    QString error = process->readAllStandardError();
-    if (!output.isEmpty()) { 
-        log(output, "white"); 
-        accumulatedOutput += output; 
-
-        // Parse progress like "Read: 50%" or "Erase: 20%" or "Write: 80%"
-        QRegularExpression progRe("(\\d+)%");
-        QRegularExpressionMatchIterator i = progRe.globalMatch(output);
-        while (i.hasNext()) {
-            QRegularExpressionMatch match = i.next();
-            ui->progressBar->setValue(match.captured(1).toInt());
-        }
-    }
-    if (!error.isEmpty()) { 
-        log(error, "yellow"); 
-        accumulatedError += error; 
-
-        // Some flashrom versions output progress to stderr
-        QRegularExpression progRe("(\\d+)%");
-        QRegularExpressionMatchIterator i = progRe.globalMatch(error);
-        while (i.hasNext()) {
-            QRegularExpressionMatch match = i.next();
-            ui->progressBar->setValue(match.captured(1).toInt());
-        }
-    }
-    if (currentState == State::Writing && (error.contains("expected size") || error.contains("doesn't match"))) handleSmartWrite(error);
-}
 void MainWindow::handleSmartWrite(const QString &error) {
     QRegularExpression re("(?:file|Image) size \\((\\d+) ?B?\\).*?(?:flash chip's|expected) size \\((\\d+) ?B?\\)");
     QRegularExpressionMatch match = re.match(error);
@@ -642,8 +660,7 @@ void MainWindow::handleSmartWrite(const QString &error) {
         lastInfo.flashSize = match.captured(2).toLong();
         if (lastInfo.fileSize < lastInfo.flashSize) {
             smartWritePending = true;
-            log(tr("Size mismatch. Reading..."), "cyan");
-            currentState = State::SmartRead;
+            log(tr("Size mismatch. Preparing Smart Merge..."), "cyan");
         }
     }
 }
@@ -671,7 +688,7 @@ QStringList MainWindow::buildRetryArgsForState(State state, const QString &chipN
     return args;
 }
 
-bool MainWindow::retryOperationWithDetectedChip(const QString &combinedOutput) {
+bool MainWindow::retryOperationWithDetectedChip(const QString &combinedOutput, State finishedState) {
     if (!combinedOutput.contains("Multiple flash chip definitions match") &&
         !combinedOutput.contains("Please specify which chip definition")) {
         return false;
@@ -695,41 +712,40 @@ bool MainWindow::retryOperationWithDetectedChip(const QString &combinedOutput) {
     if (detectedChips.isEmpty()) return false;
 
     const QString firstChip = detectedChips.first();
-    const State lastState = currentState;
-    const QStringList retryArgs = buildRetryArgsForState(lastState, firstChip);
+    const QStringList retryArgs = buildRetryArgsForState(finishedState, firstChip);
     if (retryArgs.isEmpty()) return false;
 
     ui->comboChip->setCurrentText(firstChip);
     ui->comboEepromChip->setCurrentText(firstChip);
     detectedChips.clear();
-    accumulatedError.clear();
-    accumulatedOutput.clear();
-    QTimer::singleShot(300, this, [this, lastState, retryArgs]() {
-        currentState = lastState;
-        runCommand("pkexec", retryArgs);
+    
+    // Clear and keep busy
+    beginBusyOperation(tr("Retrying with chip %1...").arg(firstChip), true);
+
+    QTimer::singleShot(300, this, [this, finishedState, retryArgs]() {
+        runCommand(finishedState, "pkexec", retryArgs);
     });
     return true;
 }
 
 bool MainWindow::handleSmartReadFailure() {
-    if (currentState != State::SmartRead) return false;
+    if (!smartWritePending) return false;
 
-    log(tr("Smart Merge: Step 1/3"), "cyan");
+    log(tr("Smart Merge: Step 1/3 (Reading original flash)"), "cyan");
     ui->statusbar->showMessage(tr("Smart Merge: Step 1/3 (Reading)"));
     const QString targetPath = getWorkPath("readx.bin");
     QFile::remove(targetPath);
-    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", targetPath});
-    currentState = State::Reading;
+    runCommand(State::SmartRead, "pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", targetPath});
     return true;
 }
 
-bool MainWindow::handleFailedProcess() {
-    const QString combined = accumulatedOutput + "\n" + accumulatedError;
-    if (retryOperationWithDetectedChip(combined)) return true;
+bool MainWindow::handleFailedProcess(int exitCode, State finishedState) {
+    const QString combined = flashController->accumulatedOutput() + "\n" + flashController->accumulatedError();
+    if (retryOperationWithDetectedChip(combined, finishedState)) return true;
     if (handleSmartReadFailure()) return true;
-    if (handleFailedLocalOperation(process->exitCode())) return false;
+    if (localFlashManager->handleFailedOperation(finishedState, exitCode)) return false;
 
-    if (!accumulatedOutput.contains("SUCCESS")) {
+    if (!flashController->accumulatedOutput().contains("SUCCESS")) {
         log(tr("Failed"), "red");
         ui->statusbar->showMessage(tr("Operation Failed"), 5000);
     }
@@ -737,85 +753,15 @@ bool MainWindow::handleFailedProcess() {
     return false;
 }
 
-bool MainWindow::handleSuccessfulLocalDetect() {
-    if (currentState != State::LocalDetect) return false;
-
-    QString info;
-    qint64 flashSize = 0;
-    if (!LocalFlash::parseDetectOutput(accumulatedOutput, &info, &flashSize)) return true;
-
-    ui->labelLocalChip->setText(info);
-    log(tr("Detected Local Chip: %1").arg(info), "green");
-    if (flashSize > 0) {
-        localSpi->setFlashSize(static_cast<uint32_t>(flashSize));
-        log(tr("Flash Size: %1 MB").arg(localSpi->getFlashSize() / 1024 / 1024));
-    }
-    return true;
-}
-
-bool MainWindow::handleSuccessfulLocalRead() {
-    if (currentState != State::LocalRead) return false;
-
-    const QString tempFile = getWorkPath("flash_read.bin");
-    if (!QFile::exists(tempFile)) return true;
-
-    if (!localSavePath.isEmpty()) {
-        QFile::remove(localSavePath);
-        if (QFile::copy(tempFile, localSavePath)) {
-            log(tr("Flash backup saved to: %1").arg(localSavePath), "green");
-        } else {
-            log(tr("Failed to save backup to: %1").arg(localSavePath), "red");
-        }
-    }
-
-    QFile f(tempFile);
-    if (f.open(QIODevice::ReadOnly)) {
-        loadDataToEditor(f.readAll());
-        f.close();
-        log(tr("Local read finished and loaded into editor."), "green");
-    }
-    cleanupLocalReadArtifact();
-    return true;
-}
-
-bool MainWindow::handleSuccessfulLocalWrite() {
-    if (currentState != State::LocalWrite) return false;
-
-    if (accumulatedOutput.contains("SUCCESS")) {
-        log(tr("Local write successfully completed!"), "green");
-    } else {
-        log(tr("Local write finished without a success marker."), "yellow");
-        ui->statusbar->showMessage(tr("Local write result is uncertain"), 5000);
-    }
-    return true;
-}
-
-bool MainWindow::handleFailedLocalOperation(int exitCode) {
-    if (currentState != State::LocalDetect &&
-        currentState != State::LocalRead &&
-        currentState != State::LocalWrite) {
-        return false;
-    }
-
-    const QString message = LocalFlash::failureMessage(exitCode);
-    if (!message.isEmpty()) {
-        log(message, "red");
-        ui->statusbar->showMessage(message, 7000);
-    }
-
-    if (currentState == State::LocalRead) cleanupLocalReadArtifact();
-    return true;
-}
-
 void MainWindow::cleanupLocalReadArtifact() {
     QFile::remove(getWorkPath("flash_read.bin"));
 }
 
 void MainWindow::handleSuccessfulDetect() {
-    if (currentState != State::Detecting) return;
+    if (currentState() != State::Detecting) return;
 
     QRegularExpression re("Found [^ ]+ flash chip \"([^\"]+)\"");
-    QRegularExpressionMatch match = re.match(accumulatedError);
+    QRegularExpressionMatch match = re.match(flashController->accumulatedError());
     if (!match.hasMatch()) return;
 
     const QString chipName = match.captured(1);
@@ -825,7 +771,7 @@ void MainWindow::handleSuccessfulDetect() {
 }
 
 bool MainWindow::handleSmartMergeSuccess() {
-    if (currentState != State::Reading || !smartWritePending) return false;
+    if (currentState() != State::Reading || !smartWritePending) return false;
 
     log(tr("Step 2/3: Merging"), "cyan");
     ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 (Merging)"));
@@ -847,25 +793,34 @@ bool MainWindow::handleSmartMergeSuccess() {
 }
 
 void MainWindow::startSmartMergeWrite() {
-    currentState = State::SmartWrite;
-    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-l", getWorkPath("flashrom.layout"), "-i", "flashzone", "-w", getWorkPath("tempx.bin")});
+    runCommand(State::SmartWrite, "pkexec", {"flashrom", "-p", getProgrammerArgs(), "-l", getWorkPath("flashrom.layout"), "-i", "flashzone", "-w", getWorkPath("tempx.bin")});
 }
 
 void MainWindow::loadReadResultIntoEditor() {
-    if (currentState != State::Reading && currentState != State::EepromRead) return;
+    if (currentState() != State::Reading && currentState() != State::EepromRead) return;
 
-    const QString path = (currentState == State::EepromRead) ? eepromFile : currentFile;
+    const QString path = (currentState() == State::EepromRead) ? eepromFile : currentFile;
     loadFileIntoEditor(path, tr("Readback Failed"));
 }
 
-bool MainWindow::handleSuccessfulProcess() {
-    handleSuccessfulLocalDetect();
-    handleSuccessfulLocalRead();
-    handleSuccessfulLocalWrite();
+bool MainWindow::handleSuccessfulProcess(State finishedState) {
+    if (localFlashManager->handleSuccessfulDetect(finishedState)) return false;
+    if (localFlashManager->handleSuccessfulRead(finishedState, localSavePath, getWorkPath("flash_read.bin"))) {
+        QFile f(getWorkPath("flash_read.bin"));
+        if (f.open(QIODevice::ReadOnly)) {
+            loadDataToEditor(f.readAll());
+            f.close();
+            log(tr("Local read finished and loaded into editor."), "green");
+        }
+        cleanupLocalReadArtifact();
+        return false;
+    }
+    if (localFlashManager->handleSuccessfulWrite(finishedState)) return false;
+
     handleSuccessfulDetect();
 
     if (handleSmartMergeSuccess()) return true;
-    if (currentState == State::SmartWrite) {
+    if (finishedState == State::SmartWrite) {
         log(tr("Successful!"), "green");
         ui->statusbar->showMessage(tr("Smart Merge Successful"), 5000);
         clearSmartWriteArtifacts();
@@ -878,13 +833,17 @@ bool MainWindow::handleSuccessfulProcess() {
     return false;
 }
 
-void MainWindow::processFinished(int exitCode) {
+void MainWindow::processFinished(int exitCode, State finishedState) {
+    bool stayBusy = false;
     if (exitCode != 0) {
-        if (handleFailedProcess()) return;
+        stayBusy = handleFailedProcess(exitCode, finishedState);
     } else {
-        if (handleSuccessfulProcess()) return;
+        stayBusy = handleSuccessfulProcess(finishedState);
     }
-    finishBusyOperation(true);
+
+    if (!stayBusy) {
+        finishBusyOperation(true);
+    }
 }
 
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
@@ -919,16 +878,19 @@ bool MainWindow::writeEditorDataToFile(const QString &path, const QString &empty
     return true;
 }
 
-void MainWindow::beginBusyOperation(const QString &statusMessage, bool lockTabs) {
+void MainWindow::beginBusyOperation(const QString &statusMessage, bool lockTabs, bool showProgress) {
     if (lockTabs) lockUi(true);
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setValue(0);
-    ui->progressBar->show();
+    if (showProgress) {
+        ui->progressBar->show();
+    } else {
+        ui->progressBar->hide();
+    }
     ui->statusbar->showMessage(statusMessage);
 }
 
 void MainWindow::finishBusyOperation(bool startIdleStatusTimer) {
-    currentState = State::Idle;
     lockUi(false);
     ui->progressBar->hide();
     if (startIdleStatusTimer && idleTimer) {
@@ -941,9 +903,9 @@ void MainWindow::abortBusyOperation() {
 }
 
 bool MainWindow::startFlashromOperation(State state, const QStringList &args, bool lockTabs) {
-    currentState = state;
-    beginBusyOperation(statusMessageForState(state), lockTabs);
-    runCommand("pkexec", args);
+    // Progress bar disabled per user request
+    beginBusyOperation(statusMessageForState(state), lockTabs, false);
+    runCommand(state, "pkexec", args);
     return true;
 }
 
@@ -1046,9 +1008,8 @@ void MainWindow::on_btnLocalBrowse_clicked() {
     loadFileIntoEditor(fileName, tr("Open Failed"), tr("Selected local file: %1").arg(localFile));
 }
 void MainWindow::on_btnLocalDetect_clicked() {
-    currentState = State::LocalDetect;
-    beginBusyOperation(statusMessageForState(currentState), true);
-    if (!runLocalHelper({"detect"})) {
+    beginBusyOperation(statusMessageForState(State::LocalDetect), true);
+    if (!runLocalHelper(State::LocalDetect, {"detect"})) {
         abortBusyOperation();
     }
 }
@@ -1062,13 +1023,12 @@ void MainWindow::on_btnLocalRead_clicked() {
     localSavePath = QFileDialog::getSaveFileName(this, tr("Save BIOS Backup"), "", tr("Binary Files (*.bin *.rom);;All Files (*)"));
     if (localSavePath.isEmpty()) return;
 
-    currentState = State::LocalRead; 
-    beginBusyOperation(tr("Starting local read (%1 MB)...").arg(localSpi->getFlashSize() / 1024 / 1024), true);
-    if (!runLocalHelper({"read", getWorkPath("flash_read.bin"), QString::number(localSpi->getFlashSize())})) {
+    beginBusyOperation(tr("Starting local read (%1 MB)...").arg(localSpi->getFlashSize() / 1024 / 1024), true, true);
+    if (!runLocalHelper(State::LocalRead, {"read", getWorkPath("flash_read.bin"), QString::number(localSpi->getFlashSize())})) {
         abortBusyOperation();
     }
 }
-void MainWindow::on_btnLocalWrite_clicked() { 
+void MainWindow::on_btnLocalWrite_clicked() {
     const LocalFlash::ValidationResult validation =
         LocalFlash::validateImageFile(localFile, localSpi->getFlashSize());
     if (!validation.ok) {
@@ -1076,13 +1036,11 @@ void MainWindow::on_btnLocalWrite_clicked() {
         return;
     }
 
-    currentState = State::LocalWrite;
-    beginBusyOperation(tr("Starting local erase & write..."), true);
-    if (!runLocalHelper({"write", localFile, QString::number(localSpi->getFlashSize())})) {
+    beginBusyOperation(tr("Starting local erase & write..."), true, true);
+    if (!runLocalHelper(State::LocalWrite, {"write", localFile, QString::number(localSpi->getFlashSize())})) {
         abortBusyOperation();
     }
 }
-
 void MainWindow::showLogContextMenu(const QPoint &pos) {
     QMenu menu(this);
     QAction *clearAction = menu.addAction(tr("Clear Log"));
@@ -1104,7 +1062,7 @@ void MainWindow::lockUi(bool locked) {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
-    if (currentState == State::LocalWrite || currentState == State::LocalRead) {
+    if (currentState() == State::LocalWrite || currentState() == State::LocalRead) {
         QMessageBox msgBox(this);
         msgBox.setIcon(QMessageBox::Critical);
         msgBox.setWindowTitle(tr("CRITICAL WARNING"));
