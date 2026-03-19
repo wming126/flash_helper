@@ -64,6 +64,8 @@ set(PROJECT_SOURCES
     src/chippreviewwidget.h
     src/localspidriver.cpp
     src/localspidriver.h
+    src/smartmerge.cpp
+    src/smartmerge.h
     res/resources.qrc
 )
 

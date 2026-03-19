@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "chippreviewwidget.h"
+#include "smartmerge.h"
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QCloseEvent>
@@ -533,15 +534,24 @@ QString MainWindow::getHelperPath() const {
     return helperPath;
 }
 
-void MainWindow::on_btnDetect_clicked() { currentState = State::Detecting; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs()}); }
+void MainWindow::on_btnDetect_clicked() {
+    startFlashromOperation(State::Detecting, {"flashrom", "-p", getProgrammerArgs()});
+}
 void MainWindow::on_btnRead_clicked() {
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save BIOS"), "backup.bin", tr("Binary (*.bin *.fd);;All (*.*)"));
     if (savePath.isEmpty()) return;
-    currentFile = savePath; currentState = State::Reading;
-    runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-r", savePath});
+    currentFile = savePath;
+    startFlashromOperation(State::Reading, {"flashrom", "-p", getProgrammerArgs(), "-r", savePath});
 }
-void MainWindow::on_btnWrite_clicked() { currentState = State::Writing; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-w", currentFile}); }
-void MainWindow::on_btnErase_clicked() { if (QMessageBox::question(this, tr("Confirm"), tr("ERASE?")) == QMessageBox::Yes) { currentState = State::Erasing; runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-E"}); } }
+void MainWindow::on_btnWrite_clicked() {
+    startFlashromOperation(State::Writing, {"flashrom", "-p", getProgrammerArgs(), "-w", currentFile});
+}
+
+void MainWindow::on_btnErase_clicked() {
+    if (QMessageBox::question(this, tr("Confirm"), tr("ERASE?")) == QMessageBox::Yes) {
+        startFlashromOperation(State::Erasing, {"flashrom", "-p", getProgrammerArgs(), "-E"});
+    }
+}
 
 void MainWindow::on_btnEepromBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open"), "", tr("Binary (*.*)"));
@@ -549,40 +559,31 @@ void MainWindow::on_btnEepromBrowse_clicked() {
 
     ui->lineEepromFile->setText(fileName);
     eepromFile = fileName;
-    QFile f(fileName);
-    if (!f.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, tr("Open Failed"), tr("Failed to open file: %1").arg(fileName));
-        return;
-    }
-    loadDataToEditor(f.readAll());
-    f.close();
-    log(tr("Loaded EEPROM file: %1").arg(fileName), "green");
+    loadFileIntoEditor(fileName, tr("Open Failed"), tr("Loaded EEPROM file: %1").arg(fileName));
 }
 void MainWindow::on_btnEepromRead_clicked() {
     QString chip = ui->comboEepromChip->currentText();
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save"), "eeprom.bin", tr("Binary (*.*)"));
     if (savePath.isEmpty()) return;
-    eepromFile = savePath; currentFile = savePath; currentState = State::EepromRead;
+    eepromFile = savePath; currentFile = savePath;
     QStringList args = {"flashrom", "-p", getProgrammerArgs(true), "-r", savePath};
     if (chip != tr("Auto Detect")) args << "-c" << chip;
-    runCommand("pkexec", args);
+    startFlashromOperation(State::EepromRead, args);
 }
 void MainWindow::on_btnEepromWrite_clicked() {
     QString chip = ui->comboEepromChip->currentText();
     QString targetFile = prepareWriteFile();
     if (targetFile.isEmpty()) return;
-    currentState = State::EepromWrite;
     QStringList args = {"flashrom", "-p", getProgrammerArgs(true), "-w", targetFile};
     if (chip != tr("Auto Detect")) args << "-c" << chip;
-    runCommand("pkexec", args);
+    startFlashromOperation(State::EepromWrite, args);
 }
 void MainWindow::on_btnEepromErase_clicked() {
     QString chip = ui->comboEepromChip->currentText();
     if (QMessageBox::question(this, tr("Confirm"), tr("ERASE?")) == QMessageBox::Yes) {
-        currentState = State::EepromErase;
         QStringList args = {"flashrom", "-p", getProgrammerArgs(true), "-E"};
         if (chip != tr("Auto Detect")) args << "-c" << chip;
-        runCommand("pkexec", args);
+        startFlashromOperation(State::EepromErase, args);
     }
 }
 
@@ -843,60 +844,20 @@ bool MainWindow::handleSmartMergeSuccess() {
 
     log(tr("Step 2/3: Merging"), "cyan");
     ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 (Merging)"));
-    if (!prepareSmartMergeArtifacts()) {
+
+    QString errorMessage;
+    if (!SmartMerge::preparePartialWrite(getWorkPath("readx.bin"),
+                                         currentFile,
+                                         getWorkPath("tempx.bin"),
+                                         getWorkPath("flashrom.layout"),
+                                         lastInfo.fileSize,
+                                         &errorMessage)) {
+        if (!errorMessage.isEmpty()) log(errorMessage, "red");
         clearSmartWriteArtifacts();
         return false;
     }
 
     startSmartMergeWrite();
-    return true;
-}
-
-bool MainWindow::prepareSmartMergeArtifacts() {
-    QFile flashFile(getWorkPath("readx.bin"));
-    QFile newFile(currentFile);
-    QFile outFile(getWorkPath("tempx.bin"));
-    if (!flashFile.open(QIODevice::ReadOnly) ||
-        !newFile.open(QIODevice::ReadOnly) ||
-        !outFile.open(QIODevice::WriteOnly)) {
-        log(tr("Failed to open Smart Merge working files."), "red");
-        return false;
-    }
-
-    const QByteArray newImage = newFile.readAll();
-    if (outFile.write(newImage) != newImage.size()) {
-        log(tr("Failed to write the Smart Merge image prefix."), "red");
-        return false;
-    }
-
-    flashFile.seek(lastInfo.fileSize);
-    const QByteArray preservedTail = flashFile.readAll();
-    if (outFile.write(preservedTail) != preservedTail.size()) {
-        log(tr("Failed to append the preserved flash tail."), "red");
-        return false;
-    }
-
-    flashFile.close();
-    newFile.close();
-    outFile.close();
-    return writeSmartMergeLayoutFile();
-}
-
-bool MainWindow::writeSmartMergeLayoutFile() {
-    QFile layout(getWorkPath("flashrom.layout"));
-    if (!layout.open(QIODevice::WriteOnly)) {
-        log(tr("Failed to create the Smart Merge layout file."), "red");
-        return false;
-    }
-
-    const QByteArray layoutData =
-        QString("00000000:%1 flashzone").arg(lastInfo.fileSize - 1, 8, 16, QChar('0')).toUtf8();
-    if (layout.write(layoutData) != layoutData.size()) {
-        log(tr("Failed to write the Smart Merge layout file."), "red");
-        return false;
-    }
-
-    layout.close();
     return true;
 }
 
@@ -908,11 +869,8 @@ void MainWindow::startSmartMergeWrite() {
 void MainWindow::loadReadResultIntoEditor() {
     if (currentState != State::Reading && currentState != State::EepromRead) return;
 
-    QFile f((currentState == State::EepromRead) ? eepromFile : currentFile);
-    if (f.open(QIODevice::ReadOnly)) {
-        loadDataToEditor(f.readAll());
-        f.close();
-    }
+    const QString path = (currentState == State::EepromRead) ? eepromFile : currentFile;
+    loadFileIntoEditor(path, tr("Readback Failed"));
 }
 
 bool MainWindow::handleSuccessfulProcess() {
@@ -948,43 +906,81 @@ void MainWindow::processFinished(int exitCode) {
 }
 
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
-QString MainWindow::prepareWriteFile() {
-    QByteArray data = ui->hexEditor->data();
+bool MainWindow::loadFileIntoEditor(const QString &path, const QString &errorTitle, const QString &successMessage) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, errorTitle, tr("Failed to open file: %1").arg(path));
+        return false;
+    }
+
+    loadDataToEditor(f.readAll());
+    f.close();
+    if (!successMessage.isEmpty()) log(successMessage, "green");
+    return true;
+}
+
+bool MainWindow::writeEditorDataToFile(const QString &path, const QString &emptyTitle, const QString &emptyMessage,
+                                       const QString &errorTitle, const QString &errorMessage) {
+    const QByteArray data = ui->hexEditor->data();
     if (data.isEmpty()) {
-        QMessageBox::warning(this, tr("No Data"), tr("There is no data in the editor to write."));
-        return QString();
+        QMessageBox::warning(this, emptyTitle, emptyMessage);
+        return false;
     }
 
-    QString tempPath = getWorkPath("flash_buffer.bin");
-    QFile f(tempPath);
-    if (f.open(QIODevice::WriteOnly)) {
-        if (f.write(data) == data.size()) {
-            f.close();
-            return tempPath;
-        }
-        f.close();
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
+        QMessageBox::warning(this, errorTitle, errorMessage);
+        return false;
     }
 
-    QMessageBox::warning(this, tr("Write Buffer Failed"),
-                         tr("Failed to prepare the temporary write buffer."));
+    f.close();
+    return true;
+}
+
+void MainWindow::beginBusyOperation(const QString &statusMessage, bool lockTabs) {
+    if (lockTabs) lockUi(true);
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setValue(0);
+    ui->progressBar->show();
+    ui->statusbar->showMessage(statusMessage);
+}
+
+void MainWindow::abortBusyOperation() {
+    currentState = State::Idle;
+    lockUi(false);
+    ui->progressBar->hide();
+}
+
+bool MainWindow::startFlashromOperation(State state, const QStringList &args, bool lockTabs) {
+    currentState = state;
+    beginBusyOperation(statusMessageForState(state), lockTabs);
+    runCommand("pkexec", args);
+    return true;
+}
+
+QString MainWindow::prepareWriteFile() {
+    const QString tempPath = getWorkPath("flash_buffer.bin");
+    if (writeEditorDataToFile(tempPath,
+                              tr("No Data"),
+                              tr("There is no data in the editor to write."),
+                              tr("Write Buffer Failed"),
+                              tr("Failed to prepare the temporary write buffer."))) {
+        return tempPath;
+    }
     return QString();
 }
 void MainWindow::on_btnSaveFile_clicked() {
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save Binary File"), currentFile, tr("Binary (*.bin *.fd);;All (*.*)"));
     if (savePath.isEmpty()) return;
 
-    const QByteArray data = ui->hexEditor->data();
-    if (data.isEmpty()) {
-        QMessageBox::warning(this, tr("No Data"), tr("There is no data in the editor to save."));
+    if (!writeEditorDataToFile(savePath,
+                               tr("No Data"),
+                               tr("There is no data in the editor to save."),
+                               tr("Save Failed"),
+                               tr("Failed to save file: %1").arg(savePath))) {
         return;
     }
 
-    QFile f(savePath);
-    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
-        QMessageBox::warning(this, tr("Save Failed"), tr("Failed to save file: %1").arg(savePath));
-        return;
-    }
-    f.close();
     currentFile = savePath;
     log(tr("File saved: %1").arg(savePath), "green");
 }
@@ -992,17 +988,9 @@ void MainWindow::on_btnBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS"), "", tr("Binary (*.bin *.fd);;All (*.*)")); 
     if (fileName.isEmpty()) return;
 
-    QFile f(fileName);
-    if (!f.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, tr("Open Failed"), tr("Failed to open file: %1").arg(fileName));
-        return;
-    }
-
     ui->lineFile->setText(fileName);
     currentFile = fileName;
-    loadDataToEditor(f.readAll());
-    f.close();
-    log(tr("Loaded BIOS file: %1").arg(fileName), "green");
+    loadFileIntoEditor(fileName, tr("Open Failed"), tr("Loaded BIOS file: %1").arg(fileName));
 }
 void MainWindow::log(const QString &msg, const QString &color) {
     if (msg.isEmpty()) return;
@@ -1064,19 +1052,17 @@ void MainWindow::on_btnLocalBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS File"), "", tr("Binary Files (*.bin *.rom);;All Files (*)"));
     if (fileName.isEmpty()) return;
 
-    QFile f(fileName);
-    if (!f.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, tr("Open Failed"), tr("Failed to open file: %1").arg(fileName));
-        return;
-    }
-
     localFile = fileName; 
     ui->editLocalFile->setText(localFile); 
-    log(tr("Selected local file: %1").arg(localFile));
-    loadDataToEditor(f.readAll());
-    f.close();
+    loadFileIntoEditor(fileName, tr("Open Failed"), tr("Selected local file: %1").arg(localFile));
 }
-void MainWindow::on_btnLocalDetect_clicked() { currentState = State::LocalDetect; if (!runLocalHelper({"detect"})) currentState = State::Idle; }
+void MainWindow::on_btnLocalDetect_clicked() {
+    currentState = State::LocalDetect;
+    beginBusyOperation(statusMessageForState(currentState), true);
+    if (!runLocalHelper({"detect"})) {
+        abortBusyOperation();
+    }
+}
 void MainWindow::on_btnLocalRead_clicked() { 
     if (localSpi->getFlashSize() == 0) {
         QMessageBox::warning(this, tr("Flash Size Unknown"),
@@ -1088,15 +1074,9 @@ void MainWindow::on_btnLocalRead_clicked() {
     if (localSavePath.isEmpty()) return;
 
     currentState = State::LocalRead; 
-    lockUi(true);
-    ui->progressBar->setRange(0, 100);
-    ui->progressBar->setValue(0);
-    ui->progressBar->show();
-    ui->statusbar->showMessage(tr("Starting local read (%1 MB)...").arg(localSpi->getFlashSize() / 1024 / 1024));
+    beginBusyOperation(tr("Starting local read (%1 MB)...").arg(localSpi->getFlashSize() / 1024 / 1024), true);
     if (!runLocalHelper({"read", getWorkPath("flash_read.bin"), QString::number(localSpi->getFlashSize())})) {
-        currentState = State::Idle;
-        lockUi(false);
-        ui->progressBar->hide();
+        abortBusyOperation();
     }
 }
 void MainWindow::on_btnLocalWrite_clicked() { 
@@ -1124,15 +1104,9 @@ void MainWindow::on_btnLocalWrite_clicked() {
         return;
     }
     currentState = State::LocalWrite; 
-    lockUi(true);
-    ui->progressBar->setRange(0, 100);
-    ui->progressBar->setValue(0);
-    ui->progressBar->show();
-    ui->statusbar->showMessage(tr("Starting local erase & write..."));
+    beginBusyOperation(tr("Starting local erase & write..."), true);
     if (!runLocalHelper({"write", localFile, QString::number(flashSize)})) {
-        currentState = State::Idle;
-        lockUi(false);
-        ui->progressBar->hide();
+        abortBusyOperation();
     }
 }
 

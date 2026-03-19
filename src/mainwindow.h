@@ -84,7 +84,13 @@ private:
     QString ensureWorkDir();
     QString getHelperPath() const;
     void loadDataToEditor(const QByteArray &data);
+    bool loadFileIntoEditor(const QString &path, const QString &errorTitle, const QString &successMessage = QString());
+    bool writeEditorDataToFile(const QString &path, const QString &emptyTitle, const QString &emptyMessage,
+                               const QString &errorTitle, const QString &errorMessage);
     QString prepareWriteFile();
+    bool startFlashromOperation(State state, const QStringList &args, bool lockTabs = false);
+    void beginBusyOperation(const QString &statusMessage, bool lockTabs = false);
+    void abortBusyOperation();
     void clearSmartWriteArtifacts();
     void cleanupWorkDir();
     void maybeResetSmartWriteArtifacts();
@@ -105,8 +111,6 @@ private:
     void handleSuccessfulDetect();
     bool handleSmartReadFailure();
     bool handleSmartMergeSuccess();
-    bool prepareSmartMergeArtifacts();
-    bool writeSmartMergeLayoutFile();
     void startSmartMergeWrite();
     void loadReadResultIntoEditor();
 

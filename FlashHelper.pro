@@ -16,13 +16,15 @@ SOURCES += \
     src/mainwindow.cpp \
     src/hexeditor.cpp \
     src/chippreviewwidget.cpp \
-    src/localspidriver.cpp
+    src/localspidriver.cpp \
+    src/smartmerge.cpp
 
 HEADERS += \
     src/mainwindow.h \
     src/hexeditor.h \
     src/chippreviewwidget.h \
-    src/localspidriver.h
+    src/localspidriver.h \
+    src/smartmerge.h
 
 RESOURCES += \
     res/resources.qrc
