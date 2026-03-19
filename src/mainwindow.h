@@ -50,6 +50,8 @@ protected:
     void closeEvent(QCloseEvent *event) override;
 
 private:
+    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase, LocalDetect, LocalRead, LocalWrite };
+
     Ui::MainWindow *ui;
     QProcess *process;
     QTranslator *translator;
@@ -67,23 +69,42 @@ private:
     void fetchSupportedChips();
     void refreshDeviceList();
     void updateTabHeight();
-    QString getProgrammerArgs(bool isEeprom = false);
+    QString getProgrammerArgs(bool isEeprom = false) const;
     QString getFlashromPath();
     void log(const QString &msg, const QString &color = "white");
     void runCommand(const QString &cmd, const QStringList &args);
     bool runLocalHelper(const QStringList &args);
     QString getWorkPath(const QString &fileName);
+    QString ensureWorkDir();
     QString getHelperPath() const;
     void loadDataToEditor(const QByteArray &data);
     QString prepareWriteFile();
+    void clearSmartWriteArtifacts();
+    void cleanupWorkDir();
+    void maybeResetSmartWriteArtifacts();
+    QStringList applySelectedChipToArgs(QStringList args) const;
+    bool canRunFlashromDirectly(const QString &programPath) const;
+    QString preparePrivilegedExecutable(QString executablePath) const;
+    QString statusMessageForState(State state) const;
+    bool retryOperationWithDetectedChip(const QString &combinedOutput);
+    QStringList buildRetryArgsForState(State state, const QString &chipName);
+    bool handleFailedProcess();
+    bool handleSuccessfulProcess();
+    bool handleSuccessfulLocalDetect();
+    bool handleSuccessfulLocalRead();
+    bool handleSuccessfulLocalWrite();
+    void handleSuccessfulDetect();
+    bool handleSmartReadFailure();
+    bool handleSmartMergeSuccess();
+    void loadReadResultIntoEditor();
 
-    // Internal state management
-    enum class State { Idle, Detecting, Reading, Writing, Erasing, SmartRead, SmartWrite, EepromRead, EepromWrite, EepromErase, LocalDetect, LocalRead, LocalWrite };
     State currentState = State::Idle;
     QStringList detectedChips;
     QString accumulatedError;
     QString accumulatedOutput;
     QString localSavePath;
+    QString workDirPath;
+    bool smartWritePending = false;
 
     struct FlashInfo {        long flashSize = 0;
         long fileSize = 0;
