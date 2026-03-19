@@ -545,7 +545,18 @@ void MainWindow::on_btnErase_clicked() { if (QMessageBox::question(this, tr("Con
 
 void MainWindow::on_btnEepromBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open"), "", tr("Binary (*.*)"));
-    if (!fileName.isEmpty()) { ui->lineEepromFile->setText(fileName); eepromFile = fileName; QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } }
+    if (fileName.isEmpty()) return;
+
+    ui->lineEepromFile->setText(fileName);
+    eepromFile = fileName;
+    QFile f(fileName);
+    if (!f.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Open Failed"), tr("Failed to open file: %1").arg(fileName));
+        return;
+    }
+    loadDataToEditor(f.readAll());
+    f.close();
+    log(tr("Loaded EEPROM file: %1").arg(fileName), "green");
 }
 void MainWindow::on_btnEepromRead_clicked() {
     QString chip = ui->comboEepromChip->currentText();
@@ -697,6 +708,7 @@ bool MainWindow::handleFailedProcess() {
     const QString combined = accumulatedOutput + "\n" + accumulatedError;
     if (retryOperationWithDetectedChip(combined)) return true;
     if (handleSmartReadFailure()) return true;
+    if (handleFailedLocalOperation(process->exitCode())) return false;
 
     if (!accumulatedOutput.contains("SUCCESS")) {
         log(tr("Failed"), "red");
@@ -745,6 +757,7 @@ bool MainWindow::handleSuccessfulLocalRead() {
         f.close();
         log(tr("Local read finished and loaded into editor."), "green");
     }
+    cleanupLocalReadArtifact();
     return true;
 }
 
@@ -758,6 +771,58 @@ bool MainWindow::handleSuccessfulLocalWrite() {
         ui->statusbar->showMessage(tr("Local write result is uncertain"), 5000);
     }
     return true;
+}
+
+bool MainWindow::handleFailedLocalOperation(int exitCode) {
+    if (currentState != State::LocalDetect &&
+        currentState != State::LocalRead &&
+        currentState != State::LocalWrite) {
+        return false;
+    }
+
+    const QString message = localFailureMessage(exitCode);
+    if (!message.isEmpty()) {
+        log(message, "red");
+        ui->statusbar->showMessage(message, 7000);
+    }
+
+    if (currentState == State::LocalRead) cleanupLocalReadArtifact();
+    return true;
+}
+
+QString MainWindow::localFailureMessage(int exitCode) const {
+    switch (exitCode) {
+        case 2:
+            return tr("Failed to initialize the local SPI driver. Check root access and platform support.");
+        case 3:
+            return tr("No local SPI flash chip was detected.");
+        case 4:
+            return tr("Failed to open the selected local image file.");
+        case 9:
+            return tr("Failed to read the local SPI flash contents.");
+        case 10:
+            return tr("Failed to open the temporary backup file for writing.");
+        case 11:
+            return tr("Failed to save the temporary backup data.");
+        case 12:
+            return tr("Failed to read the selected local image file.");
+        case 13:
+            return tr("Failed to erase the local SPI flash.");
+        case 14:
+            return tr("Failed to write the local SPI flash.");
+        case 15:
+            return tr("The helper received an invalid expected flash size.");
+        case 16:
+            return tr("The selected local image is empty.");
+        case 17:
+            return tr("The selected local image size does not match the detected flash size.");
+        default:
+            return tr("Local flash operation failed.");
+    }
+}
+
+void MainWindow::cleanupLocalReadArtifact() {
+    QFile::remove(getWorkPath("flash_read.bin"));
 }
 
 void MainWindow::handleSuccessfulDetect() {
@@ -778,33 +843,66 @@ bool MainWindow::handleSmartMergeSuccess() {
 
     log(tr("Step 2/3: Merging"), "cyan");
     ui->statusbar->showMessage(tr("Smart Merge: Step 2/3 (Merging)"));
+    if (!prepareSmartMergeArtifacts()) {
+        clearSmartWriteArtifacts();
+        return false;
+    }
 
+    startSmartMergeWrite();
+    return true;
+}
+
+bool MainWindow::prepareSmartMergeArtifacts() {
     QFile flashFile(getWorkPath("readx.bin"));
     QFile newFile(currentFile);
     QFile outFile(getWorkPath("tempx.bin"));
-    if (!flashFile.open(QIODevice::ReadOnly) || !newFile.open(QIODevice::ReadOnly) || !outFile.open(QIODevice::WriteOnly)) {
-        clearSmartWriteArtifacts();
+    if (!flashFile.open(QIODevice::ReadOnly) ||
+        !newFile.open(QIODevice::ReadOnly) ||
+        !outFile.open(QIODevice::WriteOnly)) {
+        log(tr("Failed to open Smart Merge working files."), "red");
         return false;
     }
 
-    outFile.write(newFile.readAll());
+    const QByteArray newImage = newFile.readAll();
+    if (outFile.write(newImage) != newImage.size()) {
+        log(tr("Failed to write the Smart Merge image prefix."), "red");
+        return false;
+    }
+
     flashFile.seek(lastInfo.fileSize);
-    outFile.write(flashFile.readAll());
+    const QByteArray preservedTail = flashFile.readAll();
+    if (outFile.write(preservedTail) != preservedTail.size()) {
+        log(tr("Failed to append the preserved flash tail."), "red");
+        return false;
+    }
+
     flashFile.close();
     newFile.close();
     outFile.close();
+    return writeSmartMergeLayoutFile();
+}
 
+bool MainWindow::writeSmartMergeLayoutFile() {
     QFile layout(getWorkPath("flashrom.layout"));
     if (!layout.open(QIODevice::WriteOnly)) {
-        clearSmartWriteArtifacts();
+        log(tr("Failed to create the Smart Merge layout file."), "red");
         return false;
     }
 
-    layout.write(QString("00000000:%1 flashzone").arg(lastInfo.fileSize - 1, 8, 16, QChar('0')).toUtf8());
+    const QByteArray layoutData =
+        QString("00000000:%1 flashzone").arg(lastInfo.fileSize - 1, 8, 16, QChar('0')).toUtf8();
+    if (layout.write(layoutData) != layoutData.size()) {
+        log(tr("Failed to write the Smart Merge layout file."), "red");
+        return false;
+    }
+
     layout.close();
+    return true;
+}
+
+void MainWindow::startSmartMergeWrite() {
     currentState = State::SmartWrite;
     runCommand("pkexec", {"flashrom", "-p", getProgrammerArgs(), "-l", getWorkPath("flashrom.layout"), "-i", "flashzone", "-w", getWorkPath("tempx.bin")});
-    return true;
 }
 
 void MainWindow::loadReadResultIntoEditor() {
@@ -852,19 +950,59 @@ void MainWindow::processFinished(int exitCode) {
 void MainWindow::loadDataToEditor(const QByteArray &data) { ui->hexEditor->setData(data); }
 QString MainWindow::prepareWriteFile() {
     QByteArray data = ui->hexEditor->data();
-    if (data.isEmpty()) return QString();
+    if (data.isEmpty()) {
+        QMessageBox::warning(this, tr("No Data"), tr("There is no data in the editor to write."));
+        return QString();
+    }
+
     QString tempPath = getWorkPath("flash_buffer.bin");
-    QFile f(tempPath); if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); return tempPath; }
+    QFile f(tempPath);
+    if (f.open(QIODevice::WriteOnly)) {
+        if (f.write(data) == data.size()) {
+            f.close();
+            return tempPath;
+        }
+        f.close();
+    }
+
+    QMessageBox::warning(this, tr("Write Buffer Failed"),
+                         tr("Failed to prepare the temporary write buffer."));
     return QString();
 }
 void MainWindow::on_btnSaveFile_clicked() {
     QString savePath = QFileDialog::getSaveFileName(this, tr("Save Binary File"), currentFile, tr("Binary (*.bin *.fd);;All (*.*)"));
     if (savePath.isEmpty()) return;
-    QFile f(savePath); if (f.open(QIODevice::WriteOnly)) { f.write(ui->hexEditor->data()); f.close(); log(tr("File saved: %1").arg(savePath), "green"); }
+
+    const QByteArray data = ui->hexEditor->data();
+    if (data.isEmpty()) {
+        QMessageBox::warning(this, tr("No Data"), tr("There is no data in the editor to save."));
+        return;
+    }
+
+    QFile f(savePath);
+    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
+        QMessageBox::warning(this, tr("Save Failed"), tr("Failed to save file: %1").arg(savePath));
+        return;
+    }
+    f.close();
+    currentFile = savePath;
+    log(tr("File saved: %1").arg(savePath), "green");
 }
 void MainWindow::on_btnBrowse_clicked() { 
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS"), "", tr("Binary (*.bin *.fd);;All (*.*)")); 
-    if (!fileName.isEmpty()) { ui->lineFile->setText(fileName); currentFile = fileName; QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); } } 
+    if (fileName.isEmpty()) return;
+
+    QFile f(fileName);
+    if (!f.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Open Failed"), tr("Failed to open file: %1").arg(fileName));
+        return;
+    }
+
+    ui->lineFile->setText(fileName);
+    currentFile = fileName;
+    loadDataToEditor(f.readAll());
+    f.close();
+    log(tr("Loaded BIOS file: %1").arg(fileName), "green");
 }
 void MainWindow::log(const QString &msg, const QString &color) {
     if (msg.isEmpty()) return;
@@ -924,12 +1062,19 @@ void MainWindow::on_comboLang_currentIndexChanged(int index) {
 
 void MainWindow::on_btnLocalBrowse_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open BIOS File"), "", tr("Binary Files (*.bin *.rom);;All Files (*)"));
-    if (!fileName.isEmpty()) { 
-        localFile = fileName; 
-        ui->editLocalFile->setText(localFile); 
-        log(tr("Selected local file: %1").arg(localFile)); 
-        QFile f(fileName); if (f.open(QIODevice::ReadOnly)) { loadDataToEditor(f.readAll()); f.close(); }
+    if (fileName.isEmpty()) return;
+
+    QFile f(fileName);
+    if (!f.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Open Failed"), tr("Failed to open file: %1").arg(fileName));
+        return;
     }
+
+    localFile = fileName; 
+    ui->editLocalFile->setText(localFile); 
+    log(tr("Selected local file: %1").arg(localFile));
+    loadDataToEditor(f.readAll());
+    f.close();
 }
 void MainWindow::on_btnLocalDetect_clicked() { currentState = State::LocalDetect; if (!runLocalHelper({"detect"})) currentState = State::Idle; }
 void MainWindow::on_btnLocalRead_clicked() { 
@@ -956,9 +1101,26 @@ void MainWindow::on_btnLocalRead_clicked() {
 }
 void MainWindow::on_btnLocalWrite_clicked() { 
     if (localFile.isEmpty()) { QMessageBox::warning(this, tr("Error"), tr("Please select a file first.")); return; }
+    const qint64 flashSize = localSpi->getFlashSize();
+    if (flashSize <= 0) {
+        QMessageBox::warning(this, tr("Flash Size Unknown"),
+                             tr("Unable to determine local flash size. Detect the chip first."));
+        return;
+    }
+
     QFileInfo fileInfo(localFile);
     if (!fileInfo.exists() || fileInfo.size() <= 0) {
         QMessageBox::warning(this, tr("Error"), tr("The selected local file is missing or empty."));
+        return;
+    }
+    if (fileInfo.size() != flashSize) {
+        QMessageBox::warning(
+            this,
+            tr("Image Size Mismatch"),
+            tr("The selected image is %1 bytes, but the detected flash size is %2 bytes.\n\n"
+               "Local flashing requires an exact size match.")
+                .arg(fileInfo.size())
+                .arg(flashSize));
         return;
     }
     currentState = State::LocalWrite; 
@@ -967,7 +1129,7 @@ void MainWindow::on_btnLocalWrite_clicked() {
     ui->progressBar->setValue(0);
     ui->progressBar->show();
     ui->statusbar->showMessage(tr("Starting local erase & write..."));
-    if (!runLocalHelper({"write", localFile})) {
+    if (!runLocalHelper({"write", localFile, QString::number(flashSize)})) {
         currentState = State::Idle;
         lockUi(false);
         ui->progressBar->hide();

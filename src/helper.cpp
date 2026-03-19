@@ -123,10 +123,27 @@ int main(int argc, char* argv[]) {
     else if (cmd == "write") {
         if (argc < 3) return 1;
         const char* filename = argv[2];
+        std::streamsize expectedSize = -1;
+        if (argc >= 4) {
+            try {
+                expectedSize = std::stoll(argv[3]);
+            } catch (...) {
+                std::cerr << "Invalid expected flash size.\n";
+                return 15;
+            }
+        }
         
         std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
         if (!ifs.is_open()) return 4;
         std::streamsize size = ifs.tellg();
+        if (size <= 0) {
+            std::cerr << "Input image is empty.\n";
+            return 16;
+        }
+        if (expectedSize > 0 && size != expectedSize) {
+            std::cerr << "Input image size " << size << " does not match flash size " << expectedSize << ".\n";
+            return 17;
+        }
         ifs.seekg(0, std::ios::beg);
         std::vector<uint8_t> buffer(size);
         ifs.read((char*)buffer.data(), size);

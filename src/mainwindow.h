@@ -99,9 +99,15 @@ private:
     bool handleSuccessfulLocalDetect();
     bool handleSuccessfulLocalRead();
     bool handleSuccessfulLocalWrite();
+    bool handleFailedLocalOperation(int exitCode);
+    QString localFailureMessage(int exitCode) const;
+    void cleanupLocalReadArtifact();
     void handleSuccessfulDetect();
     bool handleSmartReadFailure();
     bool handleSmartMergeSuccess();
+    bool prepareSmartMergeArtifacts();
+    bool writeSmartMergeLayoutFile();
+    void startSmartMergeWrite();
     void loadReadResultIntoEditor();
 
     State currentState = State::Idle;
