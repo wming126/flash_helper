@@ -10,12 +10,10 @@ set -e  # 遇错立即停止
 ARCH=$(uname -m)
 case "$ARCH" in
     x86_64)
-        QMAKE_CMD=$(command -v qmake6 || command -v qmake || echo "qmake")
-        echo "Detected x86_64 architecture. Using $QMAKE_CMD"
+        echo "Detected x86_64 architecture."
         ;;
     loongarch64|la64)
-        QMAKE_CMD=$(command -v qmake || echo "/usr/lib/qt5/bin/qmake")
-        echo "Detected LoongArch64 architecture. Using $QMAKE_CMD"
+        echo "Detected LoongArch64 architecture."
         ;;
     *)
         echo "Unsupported architecture: $ARCH"
@@ -32,10 +30,8 @@ rm -rf AppDir
 
 # 3. 构建 GUI 程序 (FlashHelper)
 echo "--- Step 2: Building FlashHelper GUI ---"
-mkdir -p build && cd build
-$QMAKE_CMD ../FlashHelper.pro
-make -j$(nproc)
-cd ..
+cmake -S . -B build
+cmake --build build -j"$(nproc)"
 
 # 4. 调用自动化打包脚本 (内部会处理 flashrom 的编译)
 echo "--- Step 3: Building flashrom and Packaging AppImage ---"

@@ -84,13 +84,11 @@ Libraries = ../lib
 EOF
 }
 
-# 1. 确保 FlashHelper 已经编译 (由用户在外部完成或在此处编译)
+# 1. 确保 FlashHelper 已经编译
 if [ ! -f "build/FlashHelper" ]; then
     echo "FlashHelper binary not found in build/. Attempting to build..."
-    mkdir -p build && cd build
-    if [ -f "/usr/bin/qmake6" ]; then qmake6 ../FlashHelper.pro; else qmake ../FlashHelper.pro; fi
-    make -j$(nproc)
-    cd ..
+    cmake -S . -B build
+    cmake --build build -j"$(nproc)"
 fi
 
 # 2. 强制重新构建 flashrom 核心 (确保架构匹配)
